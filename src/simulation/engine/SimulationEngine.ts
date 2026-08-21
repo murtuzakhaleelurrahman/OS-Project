@@ -6,6 +6,7 @@ import { ProcessManager } from '../process/ProcessManager'
 import type { Process } from '../process/Process'
 import { MemoryManager } from '../memory/MemoryManager'
 import type { MemorySnapshot } from '../memory/Memory'
+import type { PagingSnapshot } from '../memory/PageManager'
 import { SimulationClock } from './SimulationClock'
 
 export interface SimulationSnapshot {
@@ -22,6 +23,7 @@ export interface SimulationSnapshot {
   readonly readyQueue: readonly Process[]
   readonly cpu: CpuSnapshot
   readonly memory: MemorySnapshot
+  readonly paging: PagingSnapshot
 }
 
 export interface TickableSimulationModule {
@@ -141,6 +143,7 @@ export class SimulationEngine {
         readyQueue: this.processManager.getReadyQueue(),
         cpu: this.cpuController.getSnapshot(),
         memory: this.memoryManager.getMemorySnapshot(),
+        paging: this.memoryManager.getPagingSnapshot(),
       }
     }
     return this.cachedSnapshot

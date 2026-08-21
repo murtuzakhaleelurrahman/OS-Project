@@ -4,6 +4,7 @@ import { SimulationEngine } from './simulation/engine/SimulationEngine'
 import { ProcessState } from './simulation/process/Process'
 import { SchedulerAlgorithm } from './simulation/cpu/Scheduler'
 import { AllocationStrategyType, MemoryMode } from './simulation/memory/Memory'
+import type { TranslationResult } from './simulation/memory/PageManager'
 import './App.css'
 
 const engine = new SimulationEngine(500)
@@ -15,6 +16,8 @@ function App() {
   const [algorithm, setAlgorithm] = useState<SchedulerAlgorithm>(SchedulerAlgorithm.FCFS)
   const [quantum, setQuantum] = useState('2')
   const [allocationPid, setAllocationPid] = useState('')
+  const [logicalAddress, setLogicalAddress] = useState('0')
+  const [translation, setTranslation] = useState<TranslationResult | undefined>()
   const snapshot = useSyncExternalStore(
     (onStoreChange) => engine.subscribe(onStoreChange),
     () => engine.getSnapshot(),
@@ -89,6 +92,36 @@ function App() {
     }
   }
 
+  const allocatePages = () => {
+    try {
+      if (allocationPid.length === 0) throw new Error('Select a process to allocate')
+      engine.memoryManager.pagingManager.allocateProcessPages(allocationPid)
+      setMemoryError('')
+    } catch (pagingError) {
+      setMemoryError(pagingError instanceof Error ? pagingError.message : 'Unable to allocate pages')
+    }
+  }
+
+  const deallocatePages = (pid: string) => {
+    try {
+      engine.memoryManager.pagingManager.deallocateProcessPages(pid)
+      setMemoryError('')
+    } catch (pagingError) {
+      setMemoryError(pagingError instanceof Error ? pagingError.message : 'Unable to deallocate pages')
+    }
+  }
+
+  const translateAddress = () => {
+    try {
+      if (allocationPid.length === 0) throw new Error('Select a process to translate')
+      const result = engine.memoryManager.pagingManager.translate(allocationPid, Number(logicalAddress))
+      setTranslation(result)
+      setMemoryError(result.error ?? '')
+    } catch (translationError) {
+      setMemoryError(translationError instanceof Error ? translationError.message : 'Unable to translate address')
+    }
+  }
+
   return (
     <main className="dashboard">
       <header className="masthead">
@@ -124,12 +157,11 @@ function App() {
       </section>
 
       <section className="memory-panel">
-        <div className="section-heading"><h2>Memory Management</h2><span>PHASE 4B / CONTIGUOUS</span></div>
-        <div className="memory-controls"><label>Mode<select value={snapshot.memory.mode} onChange={(event) => changeMemoryMode(event.target.value as MemoryMode)}><option value={MemoryMode.CONTIGUOUS}>Contiguous</option><option value={MemoryMode.PAGED}>Paged</option></select></label><label>Strategy<select value={snapshot.memory.allocationStrategy} onChange={(event) => changeAllocationStrategy(event.target.value as AllocationStrategyType)}><option value={AllocationStrategyType.FIRST_FIT}>First Fit</option><option value={AllocationStrategyType.BEST_FIT}>Best Fit</option><option value={AllocationStrategyType.WORST_FIT}>Worst Fit</option></select></label><label>Process<select value={allocationPid} onChange={(event) => setAllocationPid(event.target.value)}><option value="">Select process</option>{snapshot.processes.map((process) => <option key={process.pid} value={process.pid}>{process.pid} / {process.memoryRequirement} units</option>)}</select></label><button type="button" onClick={allocateProcessMemory}>Allocate</button><button type="button" className="quiet" onClick={() => engine.memoryManager.reset()}>Reset memory</button></div>
+        <div className="section-heading"><h2>Memory Management</h2><span>{snapshot.memory.mode === MemoryMode.PAGED ? 'PHASE 4C / PAGING' : 'PHASE 4B / CONTIGUOUS'}</span></div>
+        <div className="memory-controls"><label>Mode<select value={snapshot.memory.mode} onChange={(event) => { setTranslation(undefined); changeMemoryMode(event.target.value as MemoryMode) }}><option value={MemoryMode.CONTIGUOUS}>Contiguous</option><option value={MemoryMode.PAGED}>Paged</option></select></label>{snapshot.memory.mode === MemoryMode.CONTIGUOUS ? <><label>Strategy<select value={snapshot.memory.allocationStrategy} onChange={(event) => changeAllocationStrategy(event.target.value as AllocationStrategyType)}><option value={AllocationStrategyType.FIRST_FIT}>First Fit</option><option value={AllocationStrategyType.BEST_FIT}>Best Fit</option><option value={AllocationStrategyType.WORST_FIT}>Worst Fit</option></select></label><label>Process<select value={allocationPid} onChange={(event) => setAllocationPid(event.target.value)}><option value="">Select process</option>{snapshot.processes.map((process) => <option key={process.pid} value={process.pid}>{process.pid} / {process.memoryRequirement} units</option>)}</select></label><button type="button" onClick={allocateProcessMemory}>Allocate</button></> : <><label>Process<select value={allocationPid} onChange={(event) => setAllocationPid(event.target.value)}><option value="">Select process</option>{snapshot.processes.map((process) => <option key={process.pid} value={process.pid}>{process.pid} / {process.memoryRequirement} units</option>)}</select></label><button type="button" onClick={allocatePages}>Allocate pages</button></>}<button type="button" className="quiet" onClick={() => engine.memoryManager.reset()}>Reset memory</button></div>
         {memoryError && <p className="form-error" role="alert">{memoryError}</p>}
-        <div className="memory-stats"><div><span>Total</span><strong>{snapshot.memory.totalMemory}</strong></div><div><span>Used</span><strong>{snapshot.memory.usedMemory}</strong></div><div><span>Free</span><strong>{snapshot.memory.freeMemory}</strong></div><div><span>Allocations</span><strong>{snapshot.memory.allocationCount}</strong></div><div><span>Free regions</span><strong>{snapshot.memory.freeRegionCount}</strong></div><div><span>Largest free</span><strong>{snapshot.memory.largestFreeRegion}</strong></div><div><span>External fragmentation</span><strong>{snapshot.memory.externalFragmentation}</strong></div></div>
-        <div className="memory-regions"><h3>Physical memory regions</h3>{snapshot.memory.regions.map((region) => <div className="memory-region" key={`${region.startAddress}-${region.endAddress}`}><span>{`[${region.startAddress}, ${region.endAddress})`}</span><strong>{region.allocated ? `ALLOCATED / ${region.ownerPid}` : 'FREE'}</strong><small>{region.size} units {region.allocated && region.ownerPid && <button type="button" className="region-action" onClick={() => deallocateProcessMemory(region.ownerPid as string)}>Deallocate</button>}</small></div>)}</div>
-        <p className="phase-note">Paged mode remains a future placeholder. Allocation requires Contiguous mode.</p>
+        {snapshot.memory.mode === MemoryMode.CONTIGUOUS ? <><div className="memory-stats"><div><span>Total</span><strong>{snapshot.memory.totalMemory}</strong></div><div><span>Used</span><strong>{snapshot.memory.usedMemory}</strong></div><div><span>Free</span><strong>{snapshot.memory.freeMemory}</strong></div><div><span>Allocations</span><strong>{snapshot.memory.allocationCount}</strong></div><div><span>Free regions</span><strong>{snapshot.memory.freeRegionCount}</strong></div><div><span>Largest free</span><strong>{snapshot.memory.largestFreeRegion}</strong></div><div><span>External fragmentation</span><strong>{snapshot.memory.externalFragmentation}</strong></div></div><div className="memory-regions"><h3>Physical memory regions</h3>{snapshot.memory.regions.map((region) => <div className="memory-region" key={`${region.startAddress}-${region.endAddress}`}><span>{`[${region.startAddress}, ${region.endAddress})`}</span><strong>{region.allocated ? `ALLOCATED / ${region.ownerPid}` : 'FREE'}</strong><small>{region.size} units {region.allocated && region.ownerPid && <button type="button" className="region-action" onClick={() => deallocateProcessMemory(region.ownerPid as string)}>Deallocate</button>}</small></div>)}</div></> : <><div className="memory-stats"><div><span>Total memory</span><strong>{snapshot.paging.configuration.totalMemory}</strong></div><div><span>Page size</span><strong>{snapshot.paging.configuration.pageSize}</strong></div><div><span>Total frames</span><strong>{snapshot.paging.totalFrames}</strong></div><div><span>Used frames</span><strong>{snapshot.paging.usedFrames}</strong></div><div><span>Free frames</span><strong>{snapshot.paging.freeFrames}</strong></div><div><span>Frame utilization</span><strong>{snapshot.paging.frameUtilization.toFixed(1)}%</strong></div><div><span>Allocated pages</span><strong>{snapshot.paging.totalAllocatedPages}</strong></div><div><span>Internal fragmentation</span><strong>{snapshot.paging.totalInternalFragmentation}</strong></div></div><div className="paging-grid"><div><h3>Frame table</h3>{snapshot.paging.frames.map((frame) => <div className="memory-region" key={frame.frameNumber}><span>Frame {frame.frameNumber} [{frame.startAddress},{frame.endAddress})</span><strong>{frame.occupied ? `${frame.ownerPid} Page ${frame.pageNumber}` : 'FREE'}</strong></div>)}</div><div><h3>Page tables</h3>{snapshot.paging.pageTables.length === 0 ? <p className="phase-note">No page tables.</p> : snapshot.paging.pageTables.map((table) => <div key={table.ownerPid}><strong>{table.ownerPid}</strong>{table.pages.map((page) => <p className="page-mapping" key={page.pageNumber}>Page {page.pageNumber} -&gt; {page.present ? `Frame ${page.frameNumber}` : 'PAGE FAULT'}</p>)}<button type="button" className="region-action" onClick={() => deallocatePages(table.ownerPid)}>Deallocate pages</button></div>)}</div></div><div className="translation-panel"><h3>Address translation</h3><label>Logical address<input type="number" min="0" value={logicalAddress} onChange={(event) => setLogicalAddress(event.target.value)} /></label><button type="button" onClick={translateAddress}>Translate</button>{translation && <p className="translation-result">Logical {translation.logicalAddress} / Page {translation.pageNumber} / Offset {translation.offset} / {translation.pageFault ? 'PAGE FAULT' : `Frame ${translation.frameNumber} / Physical ${translation.physicalAddress}`}</p>}</div></>}
+        <p className="phase-note">Page replacement, eviction, and swapping are not implemented.</p>
       </section>
 
       <section className="process-panel">

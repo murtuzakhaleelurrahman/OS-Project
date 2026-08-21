@@ -51,7 +51,7 @@ describe('MemoryManager foundation', () => {
     manager.setMode(MemoryMode.CONTIGUOUS)
     expect(manager.getMode()).toBe(MemoryMode.CONTIGUOUS)
     expect(events.getAll().map((event) => [event.tick, event.type])).toEqual([
-      [0, 'MEMORY_INITIALIZED'], [5, 'MEMORY_MODE_CHANGED'], [5, 'MEMORY_MODE_CHANGED'],
+      [0, 'MEMORY_INITIALIZED'], [5, 'MEMORY_PAGING_INITIALIZED'], [5, 'MEMORY_MODE_CHANGED'], [5, 'MEMORY_MODE_CHANGED'],
     ])
   })
 
@@ -63,7 +63,7 @@ describe('MemoryManager foundation', () => {
     manager.reset()
     expect(manager.getMemorySnapshot()).toMatchObject({ mode: MemoryMode.CONTIGUOUS, totalMemory: 256, usedMemory: 0, freeMemory: 256 })
     expect(manager.getMemorySnapshot().regions[0].allocated).toBe(false)
-    expect(events.getAll().at(-1)).toMatchObject({ type: 'MEMORY_RESET' })
+    expect(events.getAll()).toContainEqual(expect.objectContaining({ type: 'MEMORY_RESET' }))
   })
 
   it('replays the same memory commands deterministically', () => {
@@ -85,7 +85,7 @@ describe('MemoryManager foundation', () => {
     engine.memoryManager.reset()
     expect(engine.getSnapshot().memory.mode).toBe(MemoryMode.CONTIGUOUS)
     expect(engine.processManager.getProcess(process.pid)?.state).toBe(ProcessState.NEW)
-    expect(engine.getSnapshot().events.at(-1)?.type).toBe('MEMORY_RESET')
+    expect(engine.getSnapshot().events).toContainEqual(expect.objectContaining({ type: 'MEMORY_RESET' }))
   })
 
   it('resets memory through the engine while preserving the single process manager', () => {
@@ -94,7 +94,7 @@ describe('MemoryManager foundation', () => {
     engine.reset()
 
     expect(engine.getSnapshot().memory).toMatchObject({ mode: MemoryMode.CONTIGUOUS, totalMemory: 1024, usedMemory: 0, freeMemory: 1024 })
-    expect(engine.getSnapshot().events.map((event) => event.type)).toEqual(['CLOCK_RESET', 'MEMORY_RESET'])
+    expect(engine.getSnapshot().events.map((event) => event.type)).toEqual(['CLOCK_RESET', 'MEMORY_RESET', 'PAGING_RESET'])
   })
 })
 
@@ -166,6 +166,7 @@ describe('contiguous allocation', () => {
     expect(() => manager.allocate('P1', 101)).toThrow('No suitable contiguous region available')
     manager.allocate('P1', 50)
     expect(() => manager.allocate('P1', 10)).toThrow('Process already has allocated memory')
+    manager.deallocate('P1')
     manager.setMode(MemoryMode.PAGED)
     const before = manager.getMemorySnapshot()
     expect(() => manager.allocate('P2', 10)).toThrow('Paged mode')

@@ -15,6 +15,7 @@ export type AllocationStrategyType = (typeof AllocationStrategyType)[keyof typeo
 
 export interface MemoryConfiguration {
   readonly totalMemorySize: number
+  readonly pageSize?: number
 }
 
 export interface MemoryRegion {

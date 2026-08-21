@@ -3,6 +3,7 @@ import { AllocationStrategyType, MemoryMode, validateMemoryConfiguration, type M
 import { createAllocationStrategy } from './AllocationStrategies'
 import type { AllocationStrategy } from './AllocationStrategy'
 import type { Process } from '../process/Process'
+import { PageManager, validatePagingConfiguration, type PagingSnapshot } from './PageManager'
 
 export interface MemoryManagerOptions {
   readonly events: EventSystem
@@ -22,6 +23,7 @@ export class MemoryManager {
   private readonly initialStrategy: AllocationStrategyType
   private strategy: AllocationStrategy
   private readonly getProcess?: (pid: string) => Process | undefined
+  readonly pagingManager: PageManager
   private mode: MemoryMode
   private regions: MemoryRegion[]
   private readonly onChange?: () => void
@@ -29,8 +31,12 @@ export class MemoryManager {
   constructor(options: MemoryManagerOptions) {
     this.events = options.events
     this.getCurrentTick = options.getCurrentTick
-    this.configuration = { totalMemorySize: options.configuration?.totalMemorySize ?? 1024 }
+    const totalMemorySize = options.configuration?.totalMemorySize ?? 1024
+    const configuredPageSize = options.configuration?.pageSize
+    const pageSize = configuredPageSize ?? (totalMemorySize % 64 === 0 ? 64 : 1)
+    this.configuration = { totalMemorySize, pageSize }
     validateMemoryConfiguration(this.configuration)
+    if (configuredPageSize !== undefined) validatePagingConfiguration(totalMemorySize, configuredPageSize)
     this.initialMode = options.initialMode ?? MemoryMode.CONTIGUOUS
     this.initialStrategy = options.initialStrategy ?? AllocationStrategyType.FIRST_FIT
     this.strategy = createAllocationStrategy(this.initialStrategy)
@@ -39,16 +45,30 @@ export class MemoryManager {
     this.regions = [this.createInitialRegion()]
     this.onChange = options.onChange
     this.events.emit({ tick: this.getCurrentTick(), type: 'MEMORY_INITIALIZED', message: `Memory initialized: ${this.configuration.totalMemorySize} units` })
+    this.pagingManager = new PageManager({
+      events: this.events,
+      getCurrentTick: this.getCurrentTick,
+      getProcess: this.getProcess,
+      isPagedMode: () => this.mode === MemoryMode.PAGED,
+      totalMemory: this.configuration.totalMemorySize,
+      pageSize: this.configuration.pageSize ?? 64,
+      onChange: this.onChange,
+    })
+    if (this.initialMode === MemoryMode.PAGED) this.pagingManager.announceInitialized()
   }
 
   getConfiguration(): MemoryConfiguration { return { ...this.configuration } }
   getMode(): MemoryMode { return this.mode }
   getAllocationStrategy(): AllocationStrategyType { return this.strategy.type }
+  getPagingSnapshot(): PagingSnapshot { return this.pagingManager.getSnapshot() }
 
   setMode(mode: MemoryMode): void {
     if (mode === this.mode) return
+    if (mode === MemoryMode.PAGED && this.regions.some((region) => region.allocated)) throw new Error('Cannot switch to Paged mode while contiguous allocations exist')
+    if (mode === MemoryMode.CONTIGUOUS && this.pagingManager.getSnapshot().pageTables.length > 0) throw new Error('Cannot switch to Contiguous mode while paging allocations exist')
     const previousMode = this.mode
     this.mode = mode
+    if (mode === MemoryMode.PAGED) this.pagingManager.announceInitialized()
     this.events.emit({ tick: this.getCurrentTick(), type: 'MEMORY_MODE_CHANGED', message: `Memory mode changed: ${previousMode} -> ${mode}` })
     this.changed()
   }
@@ -123,6 +143,7 @@ export class MemoryManager {
     this.strategy = createAllocationStrategy(this.initialStrategy)
     this.regions = [this.createInitialRegion()]
     this.events.emit({ tick: this.getCurrentTick(), type: 'MEMORY_RESET', message: 'Memory reset' })
+    this.pagingManager.reset()
     this.changed()
   }
 
