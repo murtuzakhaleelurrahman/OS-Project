@@ -4,6 +4,8 @@ import { createScheduler } from '../cpu/Schedulers'
 import type { SchedulerAlgorithm } from '../cpu/Scheduler'
 import { ProcessManager } from '../process/ProcessManager'
 import type { Process } from '../process/Process'
+import { MemoryManager } from '../memory/MemoryManager'
+import type { MemorySnapshot } from '../memory/Memory'
 import { SimulationClock } from './SimulationClock'
 
 export interface SimulationSnapshot {
@@ -19,6 +21,7 @@ export interface SimulationSnapshot {
   readonly runningProcess: Process | undefined
   readonly readyQueue: readonly Process[]
   readonly cpu: CpuSnapshot
+  readonly memory: MemorySnapshot
 }
 
 export interface TickableSimulationModule {
@@ -30,6 +33,7 @@ export class SimulationEngine {
   readonly clock: SimulationClock
   readonly processManager: ProcessManager
   readonly cpuController: CPU
+  readonly memoryManager: MemoryManager
   private readonly listeners = new Set<() => void>()
   private readonly tickableModules = new Set<TickableSimulationModule>()
   private cachedSnapshot: SimulationSnapshot | undefined
@@ -60,6 +64,11 @@ export class SimulationEngine {
       getCurrentTick: () => this.clock.tickNumber,
     }, createScheduler('FCFS'))
     this.tickableModules.add(this.cpuController)
+    this.memoryManager = new MemoryManager({
+      events: this.events,
+      getCurrentTick: () => this.clock.tickNumber,
+      onChange: () => this.notify(),
+    })
   }
 
   start(): void {
@@ -111,6 +120,7 @@ export class SimulationEngine {
     this.processManager.reset()
     this.events.clear()
     this.events.emit({ tick: this.clock.tickNumber, type: 'CLOCK_RESET', message: 'Simulation reset' })
+    this.memoryManager.reset()
     this.notify()
   }
 
@@ -129,6 +139,7 @@ export class SimulationEngine {
         runningProcess: this.processManager.getRunningProcess(),
         readyQueue: this.processManager.getReadyQueue(),
         cpu: this.cpuController.getSnapshot(),
+        memory: this.memoryManager.getMemorySnapshot(),
       }
     }
     return this.cachedSnapshot

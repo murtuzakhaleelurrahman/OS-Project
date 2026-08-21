@@ -17,6 +17,9 @@ export type SimulationEventType =
   | 'CPU_BECAME_BUSY'
   | 'CONTEXT_SWITCH'
   | 'QUANTUM_EXPIRED'
+  | 'MEMORY_INITIALIZED'
+  | 'MEMORY_MODE_CHANGED'
+  | 'MEMORY_RESET'
 
 export interface SimulationEvent {
   readonly id: number

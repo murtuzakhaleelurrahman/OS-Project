@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { SimulationEngine } from './simulation/engine/SimulationEngine'
 import { ProcessState } from './simulation/process/Process'
 import { SchedulerAlgorithm } from './simulation/cpu/Scheduler'
+import { MemoryMode } from './simulation/memory/Memory'
 import './App.css'
 
 const engine = new SimulationEngine(500)
@@ -54,6 +55,10 @@ function App() {
     }
   }
 
+  const changeMemoryMode = (mode: MemoryMode) => {
+    engine.memoryManager.setMode(mode)
+  }
+
   return (
     <main className="dashboard">
       <header className="masthead">
@@ -86,6 +91,14 @@ function App() {
       <section className="cpu-panel">
         <div className="section-heading"><h2>CPU</h2><span>{snapshot.cpu.algorithm}{snapshot.cpu.timeQuantum ? ` / Q${snapshot.cpu.timeQuantum}` : ''}</span></div>
         <div className="cpu-stats"><div><span>Status</span><strong>{snapshot.cpu.busy ? 'BUSY' : 'IDLE'}</strong></div><div><span>Running</span><strong>{snapshot.cpu.runningProcess?.pid ?? '-'}</strong></div><div><span>Remaining</span><strong>{snapshot.cpu.runningProcess?.remainingTime ?? '-'}</strong></div><div><span>Busy ticks</span><strong>{snapshot.cpu.busyTicks}</strong></div><div><span>Idle ticks</span><strong>{snapshot.cpu.idleTicks}</strong></div><div><span>Switches</span><strong>{snapshot.cpu.contextSwitches}</strong></div><div><span>Utilization</span><strong>{snapshot.cpu.utilization.toFixed(1)}%</strong></div></div>
+      </section>
+
+      <section className="memory-panel">
+        <div className="section-heading"><h2>Memory Management</h2><span>PHASE 4A FOUNDATION</span></div>
+        <div className="memory-controls"><label>Mode<select value={snapshot.memory.mode} onChange={(event) => changeMemoryMode(event.target.value as MemoryMode)}><option value={MemoryMode.CONTIGUOUS}>Contiguous</option><option value={MemoryMode.PAGED}>Paged</option></select></label><button type="button" className="quiet" onClick={() => engine.memoryManager.reset()}>Reset memory</button></div>
+        <div className="memory-stats"><div><span>Total</span><strong>{snapshot.memory.totalMemory}</strong></div><div><span>Used</span><strong>{snapshot.memory.usedMemory}</strong></div><div><span>Free</span><strong>{snapshot.memory.freeMemory}</strong></div><div><span>Region count</span><strong>{snapshot.memory.regions.length}</strong></div></div>
+        <div className="memory-regions"><h3>Physical memory regions</h3>{snapshot.memory.regions.map((region) => <div className="memory-region" key={`${region.startAddress}-${region.endAddress}`}><span>{`[${region.startAddress}, ${region.endAddress})`}</span><strong>{region.allocated ? `ALLOCATED${region.ownerPid ? ` / ${region.ownerPid}` : ''}` : 'FREE'}</strong><small>{region.size} units</small></div>)}</div>
+        <p className="phase-note">Allocation strategies and paging are reserved for later memory phases.</p>
       </section>
 
       <section className="process-panel">
