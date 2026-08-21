@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { SimulationEngine } from './simulation/engine/SimulationEngine'
 import { ProcessState } from './simulation/process/Process'
 import { SchedulerAlgorithm } from './simulation/cpu/Scheduler'
-import { MemoryMode } from './simulation/memory/Memory'
+import { AllocationStrategyType, MemoryMode } from './simulation/memory/Memory'
 import './App.css'
 
 const engine = new SimulationEngine(500)
@@ -11,8 +11,10 @@ const engine = new SimulationEngine(500)
 function App() {
   const [form, setForm] = useState({ name: '', burstTime: '5', priority: '1', memoryRequirement: '64' })
   const [error, setError] = useState('')
+  const [memoryError, setMemoryError] = useState('')
   const [algorithm, setAlgorithm] = useState<SchedulerAlgorithm>(SchedulerAlgorithm.FCFS)
   const [quantum, setQuantum] = useState('2')
+  const [allocationPid, setAllocationPid] = useState('')
   const snapshot = useSyncExternalStore(
     (onStoreChange) => engine.subscribe(onStoreChange),
     () => engine.getSnapshot(),
@@ -56,7 +58,35 @@ function App() {
   }
 
   const changeMemoryMode = (mode: MemoryMode) => {
-    engine.memoryManager.setMode(mode)
+    try {
+      engine.memoryManager.setMode(mode)
+      setMemoryError('')
+    } catch (memoryError) {
+      setMemoryError(memoryError instanceof Error ? memoryError.message : 'Unable to change memory mode')
+    }
+  }
+
+  const changeAllocationStrategy = (strategy: AllocationStrategyType) => {
+    engine.memoryManager.setAllocationStrategy(strategy)
+  }
+
+  const allocateProcessMemory = () => {
+    try {
+      if (allocationPid.length === 0) throw new Error('Select a process to allocate')
+      engine.memoryManager.allocateProcess(allocationPid)
+      setMemoryError('')
+    } catch (memoryError) {
+      setMemoryError(memoryError instanceof Error ? memoryError.message : 'Unable to allocate memory')
+    }
+  }
+
+  const deallocateProcessMemory = (pid: string) => {
+    try {
+      engine.memoryManager.deallocate(pid)
+      setMemoryError('')
+    } catch (memoryError) {
+      setMemoryError(memoryError instanceof Error ? memoryError.message : 'Unable to deallocate memory')
+    }
   }
 
   return (
@@ -94,11 +124,12 @@ function App() {
       </section>
 
       <section className="memory-panel">
-        <div className="section-heading"><h2>Memory Management</h2><span>PHASE 4A FOUNDATION</span></div>
-        <div className="memory-controls"><label>Mode<select value={snapshot.memory.mode} onChange={(event) => changeMemoryMode(event.target.value as MemoryMode)}><option value={MemoryMode.CONTIGUOUS}>Contiguous</option><option value={MemoryMode.PAGED}>Paged</option></select></label><button type="button" className="quiet" onClick={() => engine.memoryManager.reset()}>Reset memory</button></div>
-        <div className="memory-stats"><div><span>Total</span><strong>{snapshot.memory.totalMemory}</strong></div><div><span>Used</span><strong>{snapshot.memory.usedMemory}</strong></div><div><span>Free</span><strong>{snapshot.memory.freeMemory}</strong></div><div><span>Region count</span><strong>{snapshot.memory.regions.length}</strong></div></div>
-        <div className="memory-regions"><h3>Physical memory regions</h3>{snapshot.memory.regions.map((region) => <div className="memory-region" key={`${region.startAddress}-${region.endAddress}`}><span>{`[${region.startAddress}, ${region.endAddress})`}</span><strong>{region.allocated ? `ALLOCATED${region.ownerPid ? ` / ${region.ownerPid}` : ''}` : 'FREE'}</strong><small>{region.size} units</small></div>)}</div>
-        <p className="phase-note">Allocation strategies and paging are reserved for later memory phases.</p>
+        <div className="section-heading"><h2>Memory Management</h2><span>PHASE 4B / CONTIGUOUS</span></div>
+        <div className="memory-controls"><label>Mode<select value={snapshot.memory.mode} onChange={(event) => changeMemoryMode(event.target.value as MemoryMode)}><option value={MemoryMode.CONTIGUOUS}>Contiguous</option><option value={MemoryMode.PAGED}>Paged</option></select></label><label>Strategy<select value={snapshot.memory.allocationStrategy} onChange={(event) => changeAllocationStrategy(event.target.value as AllocationStrategyType)}><option value={AllocationStrategyType.FIRST_FIT}>First Fit</option><option value={AllocationStrategyType.BEST_FIT}>Best Fit</option><option value={AllocationStrategyType.WORST_FIT}>Worst Fit</option></select></label><label>Process<select value={allocationPid} onChange={(event) => setAllocationPid(event.target.value)}><option value="">Select process</option>{snapshot.processes.map((process) => <option key={process.pid} value={process.pid}>{process.pid} / {process.memoryRequirement} units</option>)}</select></label><button type="button" onClick={allocateProcessMemory}>Allocate</button><button type="button" className="quiet" onClick={() => engine.memoryManager.reset()}>Reset memory</button></div>
+        {memoryError && <p className="form-error" role="alert">{memoryError}</p>}
+        <div className="memory-stats"><div><span>Total</span><strong>{snapshot.memory.totalMemory}</strong></div><div><span>Used</span><strong>{snapshot.memory.usedMemory}</strong></div><div><span>Free</span><strong>{snapshot.memory.freeMemory}</strong></div><div><span>Allocations</span><strong>{snapshot.memory.allocationCount}</strong></div><div><span>Free regions</span><strong>{snapshot.memory.freeRegionCount}</strong></div><div><span>Largest free</span><strong>{snapshot.memory.largestFreeRegion}</strong></div><div><span>External fragmentation</span><strong>{snapshot.memory.externalFragmentation}</strong></div></div>
+        <div className="memory-regions"><h3>Physical memory regions</h3>{snapshot.memory.regions.map((region) => <div className="memory-region" key={`${region.startAddress}-${region.endAddress}`}><span>{`[${region.startAddress}, ${region.endAddress})`}</span><strong>{region.allocated ? `ALLOCATED / ${region.ownerPid}` : 'FREE'}</strong><small>{region.size} units {region.allocated && region.ownerPid && <button type="button" className="region-action" onClick={() => deallocateProcessMemory(region.ownerPid as string)}>Deallocate</button>}</small></div>)}</div>
+        <p className="phase-note">Paged mode remains a future placeholder. Allocation requires Contiguous mode.</p>
       </section>
 
       <section className="process-panel">

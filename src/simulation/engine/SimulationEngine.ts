@@ -67,6 +67,7 @@ export class SimulationEngine {
     this.memoryManager = new MemoryManager({
       events: this.events,
       getCurrentTick: () => this.clock.tickNumber,
+      getProcess: (pid) => this.processManager.getProcess(pid),
       onChange: () => this.notify(),
     })
   }

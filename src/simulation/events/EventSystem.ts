@@ -20,6 +20,12 @@ export type SimulationEventType =
   | 'MEMORY_INITIALIZED'
   | 'MEMORY_MODE_CHANGED'
   | 'MEMORY_RESET'
+  | 'MEMORY_ALLOCATION_REQUESTED'
+  | 'MEMORY_ALLOCATED'
+  | 'MEMORY_ALLOCATION_FAILED'
+  | 'MEMORY_DEALLOCATED'
+  | 'MEMORY_REGIONS_MERGED'
+  | 'MEMORY_STRATEGY_CHANGED'
 
 export interface SimulationEvent {
   readonly id: number

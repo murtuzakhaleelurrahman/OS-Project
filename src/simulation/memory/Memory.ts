@@ -5,6 +5,14 @@ export const MemoryMode = {
 
 export type MemoryMode = (typeof MemoryMode)[keyof typeof MemoryMode]
 
+export const AllocationStrategyType = {
+  FIRST_FIT: 'FIRST_FIT',
+  BEST_FIT: 'BEST_FIT',
+  WORST_FIT: 'WORST_FIT',
+} as const
+
+export type AllocationStrategyType = (typeof AllocationStrategyType)[keyof typeof AllocationStrategyType]
+
 export interface MemoryConfiguration {
   readonly totalMemorySize: number
 }
@@ -24,6 +32,11 @@ export interface MemorySnapshot {
   readonly usedMemory: number
   readonly freeMemory: number
   readonly regions: readonly MemoryRegion[]
+  readonly allocationStrategy: AllocationStrategyType
+  readonly allocationCount: number
+  readonly freeRegionCount: number
+  readonly largestFreeRegion: number
+  readonly externalFragmentation: number
 }
 
 export function validateMemoryConfiguration(configuration: MemoryConfiguration): void {
