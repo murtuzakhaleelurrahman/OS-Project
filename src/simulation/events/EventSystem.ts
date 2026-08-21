@@ -4,12 +4,17 @@ export type SimulationEventType =
   | 'CLOCK_TICKED'
   | 'CLOCK_RESET'
   | 'CLOCK_FAST_FORWARDED'
+  | 'PROCESS_CREATED'
+  | 'PROCESS_STATE_CHANGED'
+  | 'PROCESS_TERMINATED'
+  | 'PROCESS_OPERATION_REJECTED'
 
 export interface SimulationEvent {
   readonly id: number
   readonly tick: number
   readonly type: SimulationEventType
   readonly message: string
+  readonly processId?: string
 }
 
 export type EventListener = (event: SimulationEvent) => void

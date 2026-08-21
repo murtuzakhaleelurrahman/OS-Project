@@ -1,10 +1,19 @@
 import { EventSystem, type SimulationEvent } from '../events/EventSystem'
+import { ProcessManager } from '../process/ProcessManager'
+import type { Process } from '../process/Process'
 import { SimulationClock } from './SimulationClock'
 
 export interface SimulationSnapshot {
   readonly tick: number
   readonly running: boolean
   readonly events: readonly SimulationEvent[]
+  readonly processes: readonly Process[]
+  readonly processCount: number
+  readonly activeProcessCount: number
+  readonly readyProcessCount: number
+  readonly blockedProcessCount: number
+  readonly terminatedProcessCount: number
+  readonly runningProcess: Process | undefined
 }
 
 export interface TickableSimulationModule {
@@ -14,6 +23,7 @@ export interface TickableSimulationModule {
 export class SimulationEngine {
   readonly events: EventSystem
   readonly clock: SimulationClock
+  readonly processManager: ProcessManager
   private readonly listeners = new Set<() => void>()
   private readonly tickableModules = new Set<TickableSimulationModule>()
   private cachedSnapshot: SimulationSnapshot | undefined
@@ -32,6 +42,11 @@ export class SimulationEngine {
         this.tickableModules.forEach((module) => module.onTick(tick))
         this.notify()
       },
+    })
+    this.processManager = new ProcessManager({
+      events: this.events,
+      getCurrentTick: () => this.clock.tickNumber,
+      onChange: () => this.notify(),
     })
   }
 
@@ -75,8 +90,9 @@ export class SimulationEngine {
 
   reset(): void {
     this.clock.reset()
+    this.processManager.reset()
     this.events.clear()
-    this.events.emit({ tick: 0, type: 'CLOCK_RESET', message: 'Simulation reset' })
+    this.events.emit({ tick: this.clock.tickNumber, type: 'CLOCK_RESET', message: 'Simulation reset' })
     this.notify()
   }
 
@@ -86,6 +102,13 @@ export class SimulationEngine {
         tick: this.clock.tickNumber,
         running: this.clock.isRunning,
         events: this.events.getAll(),
+        processes: this.processManager.getAllProcesses(),
+        processCount: this.processManager.getAllProcesses().length,
+        activeProcessCount: this.processManager.getActiveProcesses().length,
+        readyProcessCount: this.processManager.getReadyQueue().length,
+        blockedProcessCount: this.processManager.getBlockedQueue().length,
+        terminatedProcessCount: this.processManager.getTerminatedProcesses().length,
+        runningProcess: this.processManager.getRunningProcess(),
       }
     }
     return this.cachedSnapshot
