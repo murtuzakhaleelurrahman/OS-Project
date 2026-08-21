@@ -1,0 +1,42 @@
+export type SimulationEventType =
+  | 'CLOCK_STARTED'
+  | 'CLOCK_PAUSED'
+  | 'CLOCK_TICKED'
+  | 'CLOCK_RESET'
+  | 'CLOCK_FAST_FORWARDED'
+
+export interface SimulationEvent {
+  readonly id: number
+  readonly tick: number
+  readonly type: SimulationEventType
+  readonly message: string
+}
+
+export type EventListener = (event: SimulationEvent) => void
+
+export class EventSystem {
+  private readonly events: SimulationEvent[] = []
+  private readonly listeners = new Set<EventListener>()
+  private nextEventId = 1
+
+  emit(event: Omit<SimulationEvent, 'id'>): SimulationEvent {
+    const completeEvent = { ...event, id: this.nextEventId++ }
+    this.events.push(completeEvent)
+    this.listeners.forEach((listener) => listener(completeEvent))
+    return completeEvent
+  }
+
+  getAll(): readonly SimulationEvent[] {
+    return [...this.events]
+  }
+
+  subscribe(listener: EventListener): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  clear(): void {
+    this.events.length = 0
+    this.nextEventId = 1
+  }
+}
