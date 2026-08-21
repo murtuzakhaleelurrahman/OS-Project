@@ -76,12 +76,8 @@ describe('SimulationEngine', () => {
     engine.fastForward(2)
 
     expect(engine.getSnapshot()).toMatchObject({ tick: 3, running: false })
-    expect(engine.getSnapshot().events.map((event) => event.type)).toEqual([
-      'CLOCK_TICKED',
-      'CLOCK_TICKED',
-      'CLOCK_TICKED',
-      'CLOCK_FAST_FORWARDED',
-    ])
+    expect(engine.getSnapshot().events.filter((event) => event.type === 'CLOCK_TICKED').map((event) => event.tick)).toEqual([1, 2, 3])
+    expect(engine.getSnapshot().events.at(-1)?.type).toBe('CLOCK_FAST_FORWARDED')
   })
 
   it('replays the same manual sequence identically after reset', () => {

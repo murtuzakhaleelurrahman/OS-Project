@@ -8,6 +8,15 @@ export type SimulationEventType =
   | 'PROCESS_STATE_CHANGED'
   | 'PROCESS_TERMINATED'
   | 'PROCESS_OPERATION_REJECTED'
+  | 'PROCESS_ARRIVED'
+  | 'PROCESS_SELECTED'
+  | 'PROCESS_STARTED'
+  | 'PROCESS_PREEMPTED'
+  | 'PROCESS_COMPLETED'
+  | 'CPU_IDLE'
+  | 'CPU_BECAME_BUSY'
+  | 'CONTEXT_SWITCH'
+  | 'QUANTUM_EXPIRED'
 
 export interface SimulationEvent {
   readonly id: number

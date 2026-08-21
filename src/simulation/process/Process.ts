@@ -18,6 +18,8 @@ export interface Process {
   readonly priority: number
   readonly memoryRequirement: number
   readonly programCounter: number
+  readonly firstStartTime?: number
+  readonly completionTime?: number
 }
 
 export interface ProcessConfiguration {

@@ -10,11 +10,20 @@ h1 { margin: 0; color: #172126; font-family: Georgia, serif; font-size: clamp(34
 .status { display: flex; align-items: center; gap: 8px; min-width: 120px; margin-right: auto; color: #68736c; font-size: 12px; letter-spacing: 0; }
 .status > span { width: 8px; height: 8px; border-radius: 50%; background: #68736c; }
 .status .pulse { background: #5b8d54; box-shadow: 0 0 0 5px #dce8d8; }
+.scheduler-choice, .quantum-choice { display: flex; align-items: center; gap: 6px; color: #68736c; font-size: 11px; }
+select, .quantum-choice input { padding: 8px; border: 1px solid #c9cec3; border-radius: 2px; color: #172126; background: #fff; font: inherit; font-size: 11px; }
+.quantum-choice input { width: 44px; }
 button { min-height: 38px; padding: 8px 14px; border: 1px solid #172126; border-radius: 2px; color: #f5f5ed; background: #172126; font: inherit; font-size: 12px; cursor: pointer; }
 button:hover:not(:disabled) { background: #bf4d2e; border-color: #bf4d2e; }
 button:disabled { cursor: not-allowed; opacity: .4; }
 button.quiet { color: #172126; background: transparent; }
 .event-panel, .process-panel { padding-top: 36px; }
+.cpu-panel { padding-top: 36px; }
+.cpu-stats { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; margin-top: 18px; background: #c9cec3; }
+.cpu-stats div { min-height: 68px; padding: 12px; background: #eef0e7; }
+.cpu-stats span, .cpu-stats strong { display: block; }
+.cpu-stats span { color: #68736c; font-size: 10px; }
+.cpu-stats strong { margin-top: 8px; font-size: 16px; font-weight: 400; }
 .process-panel { padding-top: 48px; }
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid #172126; }
 h2 { margin: 0 0 12px; font-family: Georgia, serif; font-size: 28px; font-weight: 400; letter-spacing: 0; }
@@ -37,4 +46,7 @@ td { padding: 12px 8px; border-bottom: 1px solid #dfe2d8; white-space: nowrap; }
 .actions { display: flex; gap: 5px; white-space: normal; }
 .actions button { min-height: 28px; padding: 4px 7px; font-size: 10px; }
 .empty-cell { padding: 24px 8px; color: #68736c; text-align: center; }
+.queue-and-timeline { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; padding-top: 22px; }
+.queue-and-timeline h3 { margin: 0 0 8px; color: #68736c; font-size: 11px; font-weight: 400; text-transform: uppercase; }
+.queue-and-timeline p { min-height: 24px; margin: 0; color: #bf4d2e; font-size: 12px; }
 @media (max-width: 650px) { .dashboard { padding: 32px 18px; } .masthead { align-items: flex-start; flex-direction: column; } .clock-readout { align-items: flex-start; } .clock-readout strong { font-size: 42px; } .status { flex-basis: 100%; } li { grid-template-columns: 52px 1fr; gap: 8px; } li small { grid-column: 2; } }

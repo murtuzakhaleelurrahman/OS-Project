@@ -117,6 +117,33 @@ export class ProcessManager {
     return this.transitionProcess(pid, ProcessState.TERMINATED)
   }
 
+  admitArrivals(currentTick: number): readonly Process[] {
+    const admitted: Process[] = []
+    for (const process of this.processes.values()) {
+      if (process.state === ProcessState.NEW && process.arrivalTime <= currentTick) {
+        this.transitionProcess(process.pid, ProcessState.READY)
+        this.events.emit({ tick: currentTick, type: 'PROCESS_ARRIVED', processId: process.pid, message: `${process.pid} arrived and entered READY` })
+        admitted.push(this.copy(process))
+      }
+    }
+    return admitted
+  }
+
+  executeProcessTick(pid: string, tick: number): Process {
+    const process = this.requireProcess(pid)
+    if (process.state !== ProcessState.RUNNING) throw new Error(`Process ${pid} is not RUNNING`)
+    if (process.remainingTime > 0) process.remainingTime -= 1
+    process.programCounter += 1
+    if (process.firstStartTime === undefined) process.firstStartTime = tick
+    return this.copy(process)
+  }
+
+  recordCompletion(pid: string, tick: number): Process {
+    const process = this.requireProcess(pid)
+    process.completionTime = tick
+    return this.copy(process)
+  }
+
   reset(): void {
     this.processes.clear()
     this.nextPid = 1

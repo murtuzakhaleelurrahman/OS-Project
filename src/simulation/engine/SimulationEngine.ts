@@ -1,4 +1,7 @@
 import { EventSystem, type SimulationEvent } from '../events/EventSystem'
+import { CPU, type CpuSnapshot } from '../cpu/CPU'
+import { createScheduler } from '../cpu/Schedulers'
+import type { SchedulerAlgorithm } from '../cpu/Scheduler'
 import { ProcessManager } from '../process/ProcessManager'
 import type { Process } from '../process/Process'
 import { SimulationClock } from './SimulationClock'
@@ -14,6 +17,8 @@ export interface SimulationSnapshot {
   readonly blockedProcessCount: number
   readonly terminatedProcessCount: number
   readonly runningProcess: Process | undefined
+  readonly readyQueue: readonly Process[]
+  readonly cpu: CpuSnapshot
 }
 
 export interface TickableSimulationModule {
@@ -24,6 +29,7 @@ export class SimulationEngine {
   readonly events: EventSystem
   readonly clock: SimulationClock
   readonly processManager: ProcessManager
+  readonly cpuController: CPU
   private readonly listeners = new Set<() => void>()
   private readonly tickableModules = new Set<TickableSimulationModule>()
   private cachedSnapshot: SimulationSnapshot | undefined
@@ -48,6 +54,12 @@ export class SimulationEngine {
       getCurrentTick: () => this.clock.tickNumber,
       onChange: () => this.notify(),
     })
+    this.cpuController = new CPU({
+      processManager: this.processManager,
+      events: this.events,
+      getCurrentTick: () => this.clock.tickNumber,
+    }, createScheduler('FCFS'))
+    this.tickableModules.add(this.cpuController)
   }
 
   start(): void {
@@ -88,8 +100,14 @@ export class SimulationEngine {
     this.notify()
   }
 
+  setScheduler(algorithm: SchedulerAlgorithm, quantum = 2): void {
+    this.cpuController.setScheduler(createScheduler(algorithm, quantum))
+    this.notify()
+  }
+
   reset(): void {
     this.clock.reset()
+    this.cpuController.reset()
     this.processManager.reset()
     this.events.clear()
     this.events.emit({ tick: this.clock.tickNumber, type: 'CLOCK_RESET', message: 'Simulation reset' })
@@ -109,6 +127,8 @@ export class SimulationEngine {
         blockedProcessCount: this.processManager.getBlockedQueue().length,
         terminatedProcessCount: this.processManager.getTerminatedProcesses().length,
         runningProcess: this.processManager.getRunningProcess(),
+        readyQueue: this.processManager.getReadyQueue(),
+        cpu: this.cpuController.getSnapshot(),
       }
     }
     return this.cachedSnapshot
