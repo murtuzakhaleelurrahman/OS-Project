@@ -81,8 +81,8 @@ describe('CPU execution', () => {
     const run = () => {
       const engine = new SimulationEngine()
       engine.setScheduler('ROUND_ROBIN', 2)
-      engine.processManager.createProcess({ name: 'P1', arrivalTime: 0, burstTime: 3, priority: 1, memoryRequirement: 0 })
-      engine.processManager.createProcess({ name: 'P2', arrivalTime: 0, burstTime: 2, priority: 1, memoryRequirement: 0 })
+      engine.processManager.createProcess({ name: 'P1', arrivalTime: 0, burstTime: 3, priority: 1, memoryRequirement: 1 })
+      engine.processManager.createProcess({ name: 'P2', arrivalTime: 0, burstTime: 2, priority: 1, memoryRequirement: 1 })
       engine.fastForward(6)
       const snapshot = engine.getSnapshot()
       return {

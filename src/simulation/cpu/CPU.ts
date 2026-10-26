@@ -62,14 +62,22 @@ export class CPU {
   get timeQuantum(): number | undefined { return this.scheduler instanceof RoundRobinScheduler ? this.scheduler.timeQuantum : undefined }
 
   setScheduler(scheduler: Scheduler): void {
+    const running = this.processManager.getRunningProcess()
+    if (running !== undefined) this.processManager.transitionProcess(running.pid, ProcessState.READY)
     this.scheduler = scheduler
     this.runningPid = undefined
     if (scheduler instanceof RoundRobinScheduler) scheduler.reset()
   }
 
   onTick(tick: number): void {
-    this.processManager.admitArrivals(tick)
-    if (this.runningPid === undefined) this.dispatch(tick)
+    // Tick n executes the interval [n - 1, n).
+    this.processManager.admitArrivals(tick - 1)
+    const running = this.processManager.getRunningProcess()
+    if (running?.pid !== this.runningPid) {
+      this.runningPid = running?.pid
+      if (running !== undefined) this.scheduler.onProcessDispatched?.(running)
+    }
+    if (this.runningPid === undefined) this.dispatch(tick - 1)
     if (this.runningPid === undefined) {
       this.idleTicks += 1
       this.appendSegment({ pid: 'IDLE', startTick: tick - 1, endTick: tick })
@@ -106,14 +114,15 @@ export class CPU {
 
   getSnapshot(): CpuSnapshot {
     const tick = this.getCurrentTick()
+    const runningProcess = this.processManager.getRunningProcess()
     const processes = this.processManager.getAllProcesses()
     const elapsedTicks = Math.max(0, tick)
     const completed = processes.filter((process) => process.state === ProcessState.TERMINATED).length
     return {
       algorithm: this.scheduler.algorithm,
       timeQuantum: this.timeQuantum,
-      runningProcess: this.runningPid === undefined ? undefined : this.processManager.getProcess(this.runningPid),
-      busy: this.runningPid !== undefined,
+      runningProcess,
+      busy: runningProcess !== undefined,
       busyTicks: this.busyTicks,
       idleTicks: this.idleTicks,
       contextSwitches: this.contextSwitches,

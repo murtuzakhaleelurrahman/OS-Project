@@ -11,7 +11,7 @@ function setup() {
   const processManager = new ProcessManager({ events, getCurrentTick: () => tick })
   const synchronization = new SynchronizationManager({ processManager, events, getCurrentTick: () => tick })
   const addProcess = (name: string) => {
-    const process = processManager.createProcess({ name, arrivalTime: 0, burstTime: 5, priority: 1, memoryRequirement: 0 })
+    const process = processManager.createProcess({ name, arrivalTime: 0, burstTime: 5, priority: 1, memoryRequirement: 1 })
     processManager.transitionProcess(process.pid, ProcessState.READY)
     return process.pid
   }
@@ -120,7 +120,7 @@ describe('Critical sections and producer-consumer', () => {
 describe('SimulationEngine synchronization integration', () => {
   it('exposes one synchronized snapshot and central event history', () => {
     const engine = new SimulationEngine()
-    const process = engine.processManager.createProcess({ name: 'worker', burstTime: 2, priority: 1, memoryRequirement: 0 })
+    const process = engine.processManager.createProcess({ name: 'worker', burstTime: 2, priority: 1, memoryRequirement: 1 })
     engine.processManager.transitionProcess(process.pid, ProcessState.READY)
     const engineMutex = engine.synchronizationManager.createMutex('engine-lock')
     engine.synchronizationManager.acquireMutex(process.pid, engineMutex.id)

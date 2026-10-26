@@ -45,6 +45,7 @@ export class SimulationEngine {
   private readonly listeners = new Set<() => void>()
   private readonly tickableModules = new Set<TickableSimulationModule>()
   private cachedSnapshot: SimulationSnapshot | undefined
+  private readonly unsubscribeEvents: () => void
 
   constructor(tickDurationMs = 1000, initialTick = 0) {
     this.events = new EventSystem()
@@ -91,6 +92,8 @@ export class SimulationEngine {
       onChange: () => this.notify(),
     })
     this.tickableModules.add(this.synchronizationManager)
+    // Wait until all subsystem constructors finish before publishing event snapshots.
+    this.unsubscribeEvents = this.events.subscribe(() => this.notify())
   }
 
   start(): void {
@@ -183,6 +186,7 @@ export class SimulationEngine {
   }
 
   dispose(): void {
+    this.unsubscribeEvents()
     this.clock.pause()
     this.tickableModules.clear()
     this.listeners.clear()

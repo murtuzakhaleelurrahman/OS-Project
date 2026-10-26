@@ -49,9 +49,9 @@ describe('ProcessManager creation and retrieval', () => {
     let currentTick = 4
     const events = new EventSystem()
     const manager = new ProcessManager({ events, getCurrentTick: () => currentTick })
-    const first = manager.createProcess({ name: 'first', burstTime: 1, priority: 1, memoryRequirement: 0 })
+    const first = manager.createProcess({ name: 'first', burstTime: 1, priority: 1, memoryRequirement: 1 })
     currentTick = 9
-    const second = manager.createProcess({ name: 'second', burstTime: 2, priority: 1, memoryRequirement: 0 })
+    const second = manager.createProcess({ name: 'second', burstTime: 2, priority: 1, memoryRequirement: 1 })
 
     expect([first.pid, second.pid]).toEqual(['P1', 'P2'])
     expect([first.arrivalTime, second.arrivalTime]).toEqual([4, 9])
@@ -71,10 +71,10 @@ describe('ProcessManager creation and retrieval', () => {
     const first = createProcess(manager)
     const second = manager.createProcess({ name: 'P2', burstTime: 5, priority: 1, memoryRequirement: 10 })
     manager.transitionProcess(first.pid, ProcessState.READY)
-    manager.transitionProcess(first.pid, ProcessState.RUNNING)
     manager.transitionProcess(second.pid, ProcessState.READY)
     manager.transitionProcess(second.pid, ProcessState.RUNNING)
     manager.transitionProcess(second.pid, ProcessState.BLOCKED)
+    manager.transitionProcess(first.pid, ProcessState.RUNNING)
 
     expect(manager.getRunningProcess()?.pid).toBe(first.pid)
     expect(manager.getReadyQueue()).toHaveLength(0)
@@ -145,7 +145,7 @@ describe('ProcessManager engine integration', () => {
     })
     engine.reset()
     expect(engine.getSnapshot().processes).toEqual([])
-    expect(engine.processManager.createProcess({ name: 'again', burstTime: 1, priority: 1, memoryRequirement: 0 }).pid).toBe('P1')
+    expect(engine.processManager.createProcess({ name: 'again', burstTime: 1, priority: 1, memoryRequirement: 1 }).pid).toBe('P1')
   })
 
   it('recreates equivalent process state for the same command sequence', () => {

@@ -88,6 +88,14 @@ export class ProcessManager {
 
   transitionProcess(pid: string, nextState: ProcessState, synchronizationBlock = false): Process {
     const process = this.requireProcess(pid)
+    const otherRunning = nextState === ProcessState.RUNNING
+      ? this.getProcessesByState(ProcessState.RUNNING).find((candidate) => candidate.pid !== pid)
+      : undefined
+    if (otherRunning !== undefined) {
+      const message = 'Cannot run ' + pid + ': ' + otherRunning.pid + ' is already RUNNING'
+      this.events.emit({ tick: this.getCurrentTick(), type: 'PROCESS_OPERATION_REJECTED', processId: pid, message })
+      throw new Error(message)
+    }
     const synchronizationTransition = synchronizationBlock && nextState === ProcessState.BLOCKED && process.state === ProcessState.READY
     if (!isValidProcessTransition(process.state, nextState) && !synchronizationTransition) {
       this.events.emit({
@@ -190,8 +198,8 @@ export class ProcessManager {
       throw new Error('Arrival time must be a non-negative number')
     }
     if (!Number.isFinite(configuration.priority)) throw new Error('Priority must be a number')
-    if (!Number.isFinite(configuration.memoryRequirement) || configuration.memoryRequirement < 0) {
-      throw new Error('Memory requirement must be a non-negative number')
+    if (!Number.isInteger(configuration.memoryRequirement) || configuration.memoryRequirement <= 0) {
+      throw new Error('Memory requirement must be a positive integer')
     }
   }
 

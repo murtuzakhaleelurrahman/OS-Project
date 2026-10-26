@@ -44,7 +44,10 @@ export class RoundRobinScheduler implements Scheduler {
     return pid === undefined ? undefined : available.get(pid)
   }
   onProcessDispatched(process: Process): void {
-    if (this.queue[0] !== process.pid) { this.queue.splice(this.queue.indexOf(process.pid), 1); this.queue.unshift(process.pid) }
+    this.usedQuantum = 0
+    const index = this.queue.indexOf(process.pid)
+    if (index >= 0) this.queue.splice(index, 1)
+    this.queue.unshift(process.pid)
   }
   onProcessPreempted(process: Process): void {
     if (this.queue[0] === process.pid) this.queue.push(this.queue.shift() as string)
