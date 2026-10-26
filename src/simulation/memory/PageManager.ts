@@ -230,6 +230,24 @@ export class PageManager {
     this.changed()
   }
 
+  mapPage(pid: string, pageNumber: number, frameNumber: number): void {
+    this.requirePagedMode()
+    const table = this.pageTables.get(pid)
+    const page = table?.pages.find((candidate) => candidate.pageNumber === pageNumber)
+    if (table === undefined || page === undefined) throw new Error('Unknown page mapping')
+    if (!Number.isInteger(frameNumber) || frameNumber < 0 || frameNumber >= this.frames.length) throw new Error('Invalid frame number')
+    const target = this.frames[frameNumber]
+    if (target.occupied && !(target.ownerPid === pid && target.pageNumber === pageNumber)) throw new Error('Target frame is already occupied')
+    const previousFrame = page.frameNumber
+    this.frames = this.frames.map((frame) => frame.frameNumber === frameNumber
+      ? { ...frame, ownerPid: pid, pageNumber, occupied: true }
+      : frame.frameNumber === previousFrame ? { ...frame, ownerPid: null, pageNumber: null, occupied: false } : frame)
+    this.pageTables.set(pid, { ...table, pages: table.pages.map((candidate) => candidate.pageNumber === pageNumber ? { ...candidate, frameNumber, present: true } : candidate) })
+    this.events.emit({ tick: this.getCurrentTick(), type: 'PAGE_MAPPED', processId: pid, message: `${pid} page ${pageNumber} mapped to frame ${frameNumber}` })
+    this.changed()
+  }
+
+
   unmapPage(pid: string, pageNumber: number): void {
     this.requirePagedMode()
     const table = this.pageTables.get(pid)

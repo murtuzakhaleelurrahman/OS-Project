@@ -1,0 +1,260 @@
+{
+  "schemaVersion": 1,
+  "kind": "mini-os-result",
+  "scenario": {
+    "schemaVersion": 1,
+    "name": "CPU + disk overlap",
+    "cpu": {
+      "algorithm": "FCFS",
+      "quantum": 2
+    },
+    "disk": {
+      "algorithm": "FCFS",
+      "cylinders": 200,
+      "initialHead": 0,
+      "baseService": 1,
+      "seekCost": 1
+    },
+    "processes": [
+      {
+        "id": "P1",
+        "arrival": 0,
+        "priority": 1,
+        "bursts": [
+          {
+            "kind": "cpu",
+            "duration": 2
+          },
+          {
+            "kind": "io",
+            "cylinder": 10
+          },
+          {
+            "kind": "cpu",
+            "duration": 1
+          }
+        ]
+      },
+      {
+        "id": "P2",
+        "arrival": 0,
+        "priority": 1,
+        "bursts": [
+          {
+            "kind": "cpu",
+            "duration": 4
+          }
+        ]
+      }
+    ],
+    "eventLimit": 20000
+  },
+  "assumptions": {
+    "model": "Single CPU, single disk; educational simulation",
+    "units": "integer logical ticks; disk movement in cylinders",
+    "contextSwitchCost": 0,
+    "phases": [
+      "completion",
+      "arrival",
+      "quantum expiry",
+      "dispatch"
+    ],
+    "cpuTies": "ready-entry time then natural process ID; Round Robin uses FIFO ready entry",
+    "priority": "lower number is higher priority",
+    "sjf": "non-preemptive, next known CPU burst",
+    "diskTies": "enqueue sequence; active service is never preempted",
+    "diskService": "max(1, baseService + seekCost * absolute head movement)",
+    "metricHorizon": "time 0 to final completion; incomplete results explicitly labelled",
+    "traceRetention": 1000
+  },
+  "traceTruncated": false,
+  "result": {
+    "time": 14,
+    "playing": false,
+    "status": "complete",
+    "processes": [
+      {
+        "id": "P1",
+        "arrival": 0,
+        "priority": 1,
+        "bursts": [
+          {
+            "kind": "cpu",
+            "duration": 2
+          },
+          {
+            "kind": "io",
+            "cylinder": 10
+          },
+          {
+            "kind": "cpu",
+            "duration": 1
+          }
+        ],
+        "state": "TERMINATED",
+        "burstIndex": 2,
+        "remaining": 0,
+        "readySince": 13,
+        "readySequence": 2,
+        "waiting": 0,
+        "blocked": 11,
+        "firstStart": 0,
+        "completion": 14
+      },
+      {
+        "id": "P2",
+        "arrival": 0,
+        "priority": 1,
+        "bursts": [
+          {
+            "kind": "cpu",
+            "duration": 4
+          }
+        ],
+        "state": "TERMINATED",
+        "burstIndex": 0,
+        "remaining": 0,
+        "readySince": 0,
+        "readySequence": 1,
+        "waiting": 2,
+        "blocked": 0,
+        "firstStart": 2,
+        "completion": 6
+      }
+    ],
+    "ready": [],
+    "segments": [
+      {
+        "pid": "P1",
+        "start": 0,
+        "end": 2
+      },
+      {
+        "pid": "P2",
+        "start": 2,
+        "end": 6
+      },
+      {
+        "pid": "IDLE",
+        "start": 6,
+        "end": 13
+      },
+      {
+        "pid": "P1",
+        "start": 13,
+        "end": 14
+      }
+    ],
+    "trace": [
+      {
+        "sequence": 1,
+        "time": 0,
+        "phase": 1,
+        "type": "ARRIVAL",
+        "pid": "P1",
+        "message": "P1 arrived at 0; entered the ready queue."
+      },
+      {
+        "sequence": 2,
+        "time": 0,
+        "phase": 1,
+        "type": "ARRIVAL",
+        "pid": "P2",
+        "message": "P2 arrived at 0; entered the ready queue."
+      },
+      {
+        "sequence": 3,
+        "time": 0,
+        "phase": 3,
+        "type": "DISPATCH",
+        "pid": "P1",
+        "message": "FCFS selected P1; 2 CPU ticks scheduled from 0."
+      },
+      {
+        "sequence": 4,
+        "time": 2,
+        "phase": 0,
+        "type": "CPU_COMPLETE",
+        "pid": "P1",
+        "message": "P1 finished a CPU burst, requested disk cylinder 10, and became BLOCKED."
+      },
+      {
+        "sequence": 5,
+        "time": 2,
+        "phase": 3,
+        "type": "DISPATCH",
+        "pid": "P2",
+        "message": "FCFS selected P2; 4 CPU ticks scheduled from 2. Disk FCFS selected P1: movement 10, service 11, completes at 13."
+      },
+      {
+        "sequence": 6,
+        "time": 6,
+        "phase": 0,
+        "type": "CPU_COMPLETE",
+        "pid": "P2",
+        "message": "P2 completed its final CPU burst and terminated."
+      },
+      {
+        "sequence": 7,
+        "time": 6,
+        "phase": 3,
+        "type": "DISPATCH",
+        "message": "No READY process; CPU remains idle until the next eligible event."
+      },
+      {
+        "sequence": 8,
+        "time": 13,
+        "phase": 0,
+        "type": "DISK_COMPLETE",
+        "pid": "P1",
+        "message": "Disk interrupt: P1 completed I/O at cylinder 10; returned to READY with CPU burst 1."
+      },
+      {
+        "sequence": 9,
+        "time": 13,
+        "phase": 3,
+        "type": "DISPATCH",
+        "pid": "P1",
+        "message": "FCFS selected P1; 1 CPU ticks scheduled from 13."
+      },
+      {
+        "sequence": 10,
+        "time": 14,
+        "phase": 0,
+        "type": "CPU_COMPLETE",
+        "pid": "P1",
+        "message": "P1 completed its final CPU burst and terminated."
+      },
+      {
+        "sequence": 11,
+        "time": 14,
+        "phase": 3,
+        "type": "DISPATCH",
+        "message": "No READY process; CPU remains idle until the next eligible event."
+      }
+    ],
+    "processedEvents": 11,
+    "retainedEvents": 11,
+    "busyTicks": 7,
+    "idleTicks": 7,
+    "contextSwitches": 1,
+    "utilization": 50,
+    "throughput": 0.14285714285714285,
+    "disk": {
+      "head": 10,
+      "requests": [
+        {
+          "id": 1,
+          "pid": "P1",
+          "cylinder": 10,
+          "enqueued": 2,
+          "start": 2,
+          "movement": 10,
+          "service": 11,
+          "completion": 13
+        }
+      ],
+      "totalMovement": 10
+    }
+  }
+}

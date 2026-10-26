@@ -42,4 +42,9 @@ describe('scripted concurrency laboratory', () => {
     expect(a.getSnapshot()).toEqual(b.getSnapshot())
     expect(() => new ActorLab({ ...lostUpdatePreset, actors: [{ id: 'A', program: [{ op: 'lock', resource: 'unknown' }] }] })).toThrow()
   })
+  it('supports actor IDs that also name JavaScript object properties', () => {
+    const lab = new ActorLab({ ...lostUpdatePreset, semaphores: { s: 1 }, schedule: [], actors: [{ id: 'constructor', program: [{ op: 'wait', resource: 's' }, { op: 'signal', resource: 's' }] }] })
+    lab.runAll()
+    expect(lab.getSnapshot()).toMatchObject({ status: 'complete', semaphores: { s: { permits: 1 } } })
+  })
 })

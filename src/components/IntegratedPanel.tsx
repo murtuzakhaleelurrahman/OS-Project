@@ -6,13 +6,14 @@ import { download } from './download'
 
 const number = (value: number | null | undefined, suffix = '') => value == null ? 'N/A' : `${Number.isInteger(value) ? value : value.toFixed(2)}${suffix}`
 
-export function IntegratedPanel() {
+export function IntegratedPanel({ active = true }: { active?: boolean }) {
   const [engine, setEngine] = useState(() => new IntegratedEngine(ioPreset))
   const [input, setInput] = useState(JSON.stringify(ioPreset, null, 2))
   const [error, setError] = useState('')
   const [comparisons, setComparisons] = useState<ComparisonRow[]>([])
   const snapshot = useSyncExternalStore(engine.subscribe, engine.getSnapshot)
   useEffect(() => () => engine.pause(), [engine])
+  useEffect(() => { if (!active) engine.pause() }, [active, engine])
   const load = (value: unknown) => {
     try {
       const next = new IntegratedEngine(value)

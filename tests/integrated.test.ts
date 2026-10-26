@@ -61,6 +61,18 @@ describe('integrated CPU and disk lifecycle', () => {
     engine.runAll()
     expect(engine.getSnapshot().disk.requests[0]).toMatchObject({ service: 1, movement: 0, start: 2, completion: 3 })
   })
+  it('orders service completions before a same-time external arrival', () => {
+    const engine = new IntegratedEngine({ ...ioPreset, disk: { ...ioPreset.disk, initialHead: 10 }, processes: [ioPreset.processes[0], { id: 'P2', arrival: 3, priority: 1, bursts: [{ kind: 'cpu', duration: 1 }] }] })
+    engine.runAll()
+    expect(engine.getSnapshot().trace.filter((entry) => entry.time === 3).map((entry) => entry.type)).toEqual(['DISK_COMPLETE', 'ARRIVAL', 'DISPATCH'])
+  })
+  it('services duplicate-cylinder requests exactly once in enqueue order', () => {
+    const engine = new IntegratedEngine({ ...ioPreset, processes: ['P1', 'P2'].map((id) => ({ id, arrival: 0, priority: 0, bursts: [{ kind: 'cpu', duration: 1 }, { kind: 'io', cylinder: 10 }, { kind: 'cpu', duration: 1 }] })) })
+    engine.runAll()
+    expect(engine.getSnapshot().disk.requests.map((request) => request.pid)).toEqual(['P1', 'P2'])
+    expect(engine.getSnapshot().disk.requests.every((request) => request.completion !== undefined)).toBe(true)
+    expect(engine.getSnapshot().disk.requests[1].movement).toBe(0)
+  })
   it('reset during pending disk completion gives the same replay', () => {
     const engine = new IntegratedEngine(ioPreset)
     for (let index = 0; index < 6; index++) engine.next()
@@ -145,6 +157,21 @@ describe('integrated CPU model', () => {
     const limited = new IntegratedEngine({ ...cpuPreset, eventLimit: 1 })
     limited.runAll()
     expect(limited.getSnapshot()).toMatchObject({ status: 'limit', processedEvents: 1 })
+  })
+  it('bounds retained traces without losing the scenario or execution count', () => {
+    const engine = new IntegratedEngine({ ...cpuPreset, cpu: { algorithm: 'ROUND_ROBIN', quantum: 1 }, processes: [{ id: 'P1', arrival: 0, priority: 0, bursts: [{ kind: 'cpu', duration: 600 }] }] })
+    engine.runAll()
+    expect(engine.getSnapshot().trace).toHaveLength(1000)
+    expect(engine.getSnapshot().processedEvents).toBeGreaterThan(1000)
+    expect(engine.getSnapshot().status).toBe('complete')
+  })
+  it('keeps non-preemptive Priority running despite a higher priority arrival', () => {
+    const engine = new IntegratedEngine({ ...cpuPreset, cpu: { algorithm: 'PRIORITY', quantum: 2 }, processes: [
+      { id: 'P1', arrival: 0, priority: 10, bursts: [{ kind: 'cpu', duration: 4 }] },
+      { id: 'P2', arrival: 1, priority: 0, bursts: [{ kind: 'cpu', duration: 1 }] },
+    ] })
+    engine.runAll()
+    expect(engine.getSnapshot().segments).toEqual([{ pid: 'P1', start: 0, end: 4 }, { pid: 'P2', start: 4, end: 5 }])
   })
   it('rejects malformed scenario input before execution', () => {
     expect(() => parseScenario(null)).toThrow()

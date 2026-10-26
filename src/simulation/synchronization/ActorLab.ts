@@ -63,7 +63,7 @@ export class ActorLab {
     this.actors = this.scenario.actors.map((actor) => ({ ...structuredClone(actor), pc: 0, local: 0, blockedTicks: 0 }))
     this.shared = this.scenario.initialValue
     this.scenario.mutexes.forEach((id) => this.mutexes.set(id, { waiters: [] }))
-    Object.entries(this.scenario.semaphores).forEach(([id, permits]) => this.semaphores.set(id, { permits, waiters: [], held: {} }))
+    Object.entries(this.scenario.semaphores).forEach(([id, permits]) => this.semaphores.set(id, { permits, waiters: [], held: Object.create(null) as Record<string, number> }))
   }
   getSnapshot() {
     const unfinished = this.actors.filter((actor) => actor.pc < actor.program.length)

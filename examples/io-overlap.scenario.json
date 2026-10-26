@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "name": "CPU + disk overlap",
+  "cpu": {
+    "algorithm": "FCFS",
+    "quantum": 2
+  },
+  "disk": {
+    "algorithm": "FCFS",
+    "cylinders": 200,
+    "initialHead": 0,
+    "baseService": 1,
+    "seekCost": 1
+  },
+  "processes": [
+    {
+      "id": "P1",
+      "arrival": 0,
+      "priority": 1,
+      "bursts": [
+        {
+          "kind": "cpu",
+          "duration": 2
+        },
+        {
+          "kind": "io",
+          "cylinder": 10
+        },
+        {
+          "kind": "cpu",
+          "duration": 1
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "arrival": 0,
+      "priority": 1,
+      "bursts": [
+        {
+          "kind": "cpu",
+          "duration": 4
+        }
+      ]
+    }
+  ],
+  "eventLimit": 20000
+}
