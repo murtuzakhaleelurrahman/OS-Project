@@ -1,4 +1,4 @@
-import { integer } from '../integrated/Scenario'
+import { integer } from '../shared/validation'
 
 export type ActorInstruction = { op: 'read' | 'increment' | 'write' | 'produce' | 'consume' } | { op: 'lock' | 'unlock' | 'wait' | 'signal'; resource: string }
 export interface ActorScript { id: string; program: ActorInstruction[] }

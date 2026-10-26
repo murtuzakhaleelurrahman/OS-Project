@@ -1,4 +1,4 @@
-import { integer } from '../integrated/Scenario'
+import { integer } from '../shared/validation'
 
 export interface ResourceState { available: number[]; allocation: number[][]; maximum: number[][] }
 export interface SafetyResult { safe: boolean; sequence: number[]; need: number[][]; steps: { process: number; before: number[]; after: number[] }[]; unfinished: number[] }

@@ -175,7 +175,7 @@ function App() {
     <main className="dashboard">
       <header className="masthead">
         <div>
-          <p className="eyebrow">MINI OS / PHASE 01</p>
+          <p className="eyebrow">MINI OS / MANUAL ALGORITHM TOOLS</p>
           <h1>Simulation Control</h1>
         </div>
         <div className="clock-readout">
@@ -206,7 +206,7 @@ function App() {
       </section>
 
       <section className="memory-panel">
-        <div className="section-heading"><h2>Memory Management</h2><span>{snapshot.memory.mode === MemoryMode.PAGED ? 'PHASE 4C / PAGING' : 'PHASE 4B / CONTIGUOUS'}</span></div>
+        <div className="section-heading"><h2>Memory Management</h2><span>{snapshot.memory.mode === MemoryMode.PAGED ? 'PAGING LAB' : 'CONTIGUOUS MEMORY LAB'}</span></div>
         <div className="memory-controls"><label>Mode<select value={snapshot.memory.mode} onChange={(event) => { setTranslation(undefined); changeMemoryMode(event.target.value as MemoryMode) }}><option value={MemoryMode.CONTIGUOUS}>Contiguous</option><option value={MemoryMode.PAGED}>Paged</option></select></label>{snapshot.memory.mode === MemoryMode.CONTIGUOUS ? <><label>Strategy<select value={snapshot.memory.allocationStrategy} onChange={(event) => changeAllocationStrategy(event.target.value as AllocationStrategyType)}><option value={AllocationStrategyType.FIRST_FIT}>First Fit</option><option value={AllocationStrategyType.BEST_FIT}>Best Fit</option><option value={AllocationStrategyType.WORST_FIT}>Worst Fit</option></select></label><label>Process<select value={allocationPid} onChange={(event) => setAllocationPid(event.target.value)}><option value="">Select process</option>{snapshot.processes.map((process) => <option key={process.pid} value={process.pid}>{process.pid} / {process.memoryRequirement} units</option>)}</select></label><button type="button" onClick={allocateProcessMemory}>Allocate</button></> : <><label>Process<select value={allocationPid} onChange={(event) => setAllocationPid(event.target.value)}><option value="">Select process</option>{snapshot.processes.map((process) => <option key={process.pid} value={process.pid}>{process.pid} / {process.memoryRequirement} units</option>)}</select></label><button type="button" onClick={allocatePages}>Allocate pages</button></>}<button type="button" className="quiet" onClick={() => engine.memoryManager.reset()}>Reset memory</button></div>
         {memoryError && <p className="form-error" role="alert">{memoryError}</p>}
         {snapshot.memory.mode === MemoryMode.PAGED && <div className="replacement-panel">
@@ -238,7 +238,7 @@ function App() {
       </section>
 
       <section className="synchronization-panel">
-        <div className="section-heading"><h2>Process Synchronization</h2><span>PHASE 06</span></div>
+        <div className="section-heading"><h2>Process Synchronization</h2><span>SYNCHRONIZATION LAB</span></div>
         <div className="sync-controls">
           <label>Process<select value={syncPid} onChange={(event) => setSyncPid(event.target.value)}><option value="">Select process</option>{snapshot.processes.filter((process) => process.state !== ProcessState.TERMINATED).map((process) => <option key={process.pid} value={process.pid}>{process.pid} / {process.state}</option>)}</select></label>
           <label>Mutex<select value={mutexId} onChange={(event) => setMutexId(event.target.value)}><option value="">Select mutex</option>{snapshot.synchronization.mutexes.map((mutex) => <option key={mutex.id} value={mutex.id}>{mutex.id}</option>)}</select></label>

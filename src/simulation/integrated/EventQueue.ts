@@ -5,7 +5,6 @@ export interface ScheduledEvent<T> {
   readonly time: number
   readonly phase: EventPhase
   readonly sequence: number
-  readonly generation: number
   readonly payload: T
 }
 
@@ -13,7 +12,6 @@ export interface ScheduledEvent<T> {
 export class EventQueue<T> {
   private events: ScheduledEvent<T>[] = []
   private sequence = 0
-  private generation = 0
   private cursor: ScheduledEvent<T> | undefined
 
   schedule(time: number, phase: EventPhase, payload: T): ScheduledEvent<T> {
@@ -22,7 +20,7 @@ export class EventQueue<T> {
     if (this.cursor && (time < this.cursor.time || (time === this.cursor.time && phase < this.cursor.phase))) {
       throw new Error('An event cannot schedule an earlier time or an earlier same-time phase')
     }
-    const event = { time, phase, sequence: this.sequence++, generation: this.generation, payload }
+    const event = { time, phase, sequence: this.sequence++, payload }
     this.events.push(event)
     this.events.sort((a, b) => a.time - b.time || a.phase - b.phase || a.sequence - b.sequence)
     return event
@@ -43,6 +41,5 @@ export class EventQueue<T> {
     this.events = []
     this.cursor = undefined
     this.sequence = 0
-    this.generation++
   }
 }

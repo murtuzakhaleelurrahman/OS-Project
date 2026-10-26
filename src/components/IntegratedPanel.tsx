@@ -3,6 +3,7 @@ import { IntegratedEngine } from '../simulation/integrated/IntegratedEngine'
 import { cpuPreset, diskPreset, ioPreset, type Scenario } from '../simulation/integrated/Scenario'
 import { comparePolicies, importScenario, metricsCsv, resultBundle, traceCsv, type ComparisonRow } from '../simulation/integrated/Experiments'
 import { download } from './download'
+import { identifyPreset } from '../simulation/integrated/Presets'
 
 const number = (value: number | null | undefined, suffix = '') => value == null ? 'N/A' : `${Number.isInteger(value) ? value : value.toFixed(2)}${suffix}`
 
@@ -31,10 +32,19 @@ export function IntegratedPanel({ active = true }: { active?: boolean }) {
     <section className="integrated-card">
       <div className="integrated-heading"><div><p className="kicker">01 / EXPERIMENT</p><h2>{engine.scenario.name}</h2></div><span className="tag">SCHEMA v1</span></div>
       <div className="integrated-controls">
-        <label>Preset<select value={engine.scenario.name === ioPreset.name ? 'io' : engine.scenario.name === cpuPreset.name ? 'cpu' : engine.scenario.name === diskPreset.name ? 'disk' : 'custom'} onChange={(event) => load(event.target.value === 'io' ? ioPreset : event.target.value === 'disk' ? diskPreset : cpuPreset)}><option value="io">CPU + disk overlap</option><option value="cpu">CPU scheduling oracle</option><option value="disk">Disk queue comparison</option><option value="custom" disabled>Custom workload</option></select></label>
+        <label>Preset<select value={identifyPreset(engine.scenario)} onChange={(event) => load(event.target.value === 'io' ? ioPreset : event.target.value === 'disk' ? diskPreset : cpuPreset)}><option value="io">CPU + disk overlap</option><option value="cpu">CPU scheduling oracle</option><option value="disk">Disk queue comparison</option><option value="custom" disabled>Custom workload</option></select></label>
         <label>CPU policy<select value={engine.scenario.cpu.algorithm} onChange={(event) => policy(event.target.value as Scenario['cpu']['algorithm'])}><option>FCFS</option><option>SJF</option><option>PRIORITY</option><option value="ROUND_ROBIN">Round Robin</option></select></label>
         <label>Disk policy<select value={engine.scenario.disk.algorithm} onChange={(event) => load({ ...engine.scenario, disk: { ...engine.scenario.disk, algorithm: event.target.value } })}><option>FCFS</option><option>SSTF</option></select></label>
-        <label>Quantum<input type="number" min="1" defaultValue={engine.scenario.cpu.quantum} key={`${engine.scenario.name}-${engine.scenario.cpu.quantum}`} onBlur={(event) => load({ ...engine.scenario, cpu: { ...engine.scenario.cpu, quantum: Number(event.target.value) } })} /></label>
+        <label>Quantum<input type="number" min="1" defaultValue={engine.scenario.cpu.quantum} key={`${engine.scenario.name}-${engine.scenario.cpu.quantum}`} onBlur={(event) => {
+          const quantum = Number(event.currentTarget.value)
+          if (quantum === engine.scenario.cpu.quantum) return
+          if (!Number.isSafeInteger(quantum) || quantum < 1 || quantum > 1_000_000) {
+            setError('Quantum must be an integer from 1 to 1000000')
+            event.currentTarget.value = String(engine.scenario.cpu.quantum)
+            return
+          }
+          load({ ...engine.scenario, cpu: { ...engine.scenario.cpu, quantum } })
+        }} /></label>
         <button onClick={() => snapshot.playing ? engine.pause() : engine.play()} disabled={snapshot.status === 'complete' || snapshot.status === 'limit'}>{snapshot.playing ? 'Pause' : 'Play'}</button>
         <button className="quiet" onClick={() => { engine.pause(); engine.next() }} disabled={snapshot.status === 'complete' || snapshot.status === 'limit'}>Next event →</button>
         <button className="quiet" onClick={() => { engine.pause(); engine.runAll() }} disabled={snapshot.status === 'complete' || snapshot.status === 'limit'}>Run to end</button>

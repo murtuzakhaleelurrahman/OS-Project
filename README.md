@@ -6,13 +6,18 @@ A browser-based educational OS simulator built with React, TypeScript and Vite. 
 
 Use Node.js 22.12+ (the project was validated with 22.20.0).
 
-```powershell
-cd "D:\OS Project"
-npm.cmd ci
-npm.cmd run dev -- --host 127.0.0.1
+Clone the repository and run these commands on Windows, macOS or Linux:
+
+```sh
+git clone https://github.com/murtuzakhaleelurrahman/OS-Project.git
+cd OS-Project
+npm ci
+npm run dev -- --host 127.0.0.1
 ```
 
-Open the local URL printed in the terminal. For a production preview, run `npm.cmd run build` then `npm.cmd run preview`.
+In Windows PowerShell, use `npm.cmd` instead of `npm` if script execution is restricted. You can also open a terminal in an existing clone; no specific drive or folder name is required.
+
+Open the local URL printed in the terminal. For a production preview, run `npm run build` then `npm run preview`.
 
 ## What is implemented
 
@@ -55,10 +60,10 @@ CPU configuration supplies `algorithm` and a positive `quantum`. Disk configurat
 
 ## Validation
 
-```powershell
-npm.cmd test
-npm.cmd run build
-npm.cmd run lint
+```sh
+npm test
+npm run build
+npm run lint
 ```
 
 See [validation](docs/VALIDATION.md), [architecture and limitations](docs/ARCHITECTURE.md), [implementation phases](docs/IMPLEMENTATION_PLAN.md) and [presentation guide](docs/DEMONSTRATION.md). Exported examples are in `examples/`.
@@ -68,3 +73,7 @@ See [validation](docs/VALIDATION.md), [architecture and limitations](docs/ARCHIT
 Integrated scenarios accept at most 100 processes and 101 bursts per process; event execution is bounded by an explicit limit (maximum 100,000). The decision trace retains the latest 1,000 events. Result JSON and CSV indicate truncation; scenario JSON always retains the replayable input. Browser imports are limited to 1 MB. Memory labs accept up to 256 resident frames; reference experiments use 1–32 frames and up to 500 references. Actor scripts are bounded at 1,000 operations.
 
 This is an educational abstraction, not real host OS management. Integrated demand paging, TLB/two-level paging, preemptive priority/SRTF, aging/MLFQ, a general thread scheduler, deadlock detection, filesystem and terminal remain outside the committed core. Unsafe Banker results do not establish an existing deadlock. No cloud hosting or backend is configured.
+
+## Continuous integration
+
+The GitHub Actions workflow in `.github/workflows/ci.yml` runs the real npm test, production build and lint commands on Ubuntu, Windows and macOS with Node 22. It runs on pushes, pull requests and manual dispatch. A workflow file is not evidence of a successful hosted run; see the repository Actions tab for actual results.

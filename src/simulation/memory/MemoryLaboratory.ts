@@ -1,5 +1,5 @@
 import { EventSystem } from '../events/EventSystem'
-import { integer } from '../integrated/Scenario'
+import { integer } from '../shared/validation'
 import { ProcessManager } from '../process/ProcessManager'
 import { MemoryManager } from './MemoryManager'
 import { MemoryMode, type AllocationStrategyType } from './Memory'

@@ -1,7 +1,7 @@
 # Proposal implementation plan
 
-Primary repository: `D:\OS Project`. Baseline: commit `951e601`, 102 tests.
-The source proposal is Mini_OS_Dashboard_Updated_Project_Proposal.pdf (12 October 2026).
+Baseline: commit `951e601`, 102 tests. All paths in this document are repository-relative.
+The original course proposal (12 October 2026) was supplied separately and is not distributed here. The implemented scope, model contract and acceptance cases are reproduced below and in VALIDATION.md so the repository is self-contained.
 
 Each phase is developed, tested, built and committed locally before the next phase.
 Existing algorithm laboratories remain available. Optional extensions do not count toward core acceptance.

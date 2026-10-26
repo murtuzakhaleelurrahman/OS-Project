@@ -1,6 +1,6 @@
 # Validation record
 
-Date: 26 October 2026. Primary repository: `D:\OS Project`.
+Validation date: 26 October 2026. Commands run from the repository root.
 
 ## Automated acceptance
 
@@ -18,7 +18,7 @@ Date: 26 October 2026. Primary repository: `D:\OS Project`.
 | Edge cases | Empty workload/N/A ratios, idle gaps, exact quantum completion, arrival at quantum boundary, duplicate disk cylinders, one-frame/repeated-page references, invalid matrices, unmap/remap, failed allocation, coalescing, reset during pending CPU/disk completion, event limit and trace retention |
 | State invariants | At most one runner; no duplicate ready membership; turnaround = CPU + READY wait + BLOCKED time; buffer occupancy and production/consumption conservation; safe requests conserve total resources |
 
-The original 102-test suite remains; acceptance, laboratory and export tests extend it. Final commands and counts are recorded in IMPLEMENTATION_PLAN.md. Production compilation and lint are required for each phase; all commits are local until explicitly pushed.
+The original 102-test suite remains; acceptance, laboratory and export tests extend it. Final commands and counts are recorded in IMPLEMENTATION_PLAN.md. Production compilation and lint are required for each phase. The phase commits were published on GitHub; subsequent checks are automated by `.github/workflows/ci.yml`. Historical browser checks below were performed manually and are distinct from automated CI evidence.
 
 ## Browser smoke checks
 
@@ -36,3 +36,7 @@ Browser interactions are smoke checks, not a claim of a comprehensive automated 
 ## Limits
 
 Trace/result exports disclose retention truncation. Large custom scenarios stop explicitly at their configured event limit. No measurements claim real hardware performance. Optional extensions listed in the proposal remain excluded from core acceptance.
+
+## Review follow-up
+
+The follow-up patch passes the real npm commands locally: 148 tests, production build and lint. Three preset-identification tests cover normalized built-ins, edits under an unchanged name, and independent policy changes. Browser checks confirm unchanged quantum focus/blur preserves t=14, a changed quantum resets the run, invalid quantum input preserves the result, and edited bursts display Custom workload. The new CI workflow is configured for Ubuntu, Windows and macOS; a successful hosted run is not claimed until GitHub Actions reports it.
