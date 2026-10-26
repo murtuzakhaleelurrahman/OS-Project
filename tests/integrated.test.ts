@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventQueue, Phase } from '../src/simulation/integrated/EventQueue'
 import { IntegratedEngine } from '../src/simulation/integrated/IntegratedEngine'
-import { cpuPreset, parseScenario } from '../src/simulation/integrated/Scenario'
+import { cpuPreset, ioPreset, parseScenario } from '../src/simulation/integrated/Scenario'
 
 afterEach(() => { vi.useRealTimers() })
 describe('deterministic event queue', () => {
@@ -28,6 +28,57 @@ describe('deterministic event queue', () => {
     queue.cancel(old)
     expect(queue.pop()?.payload).toBe('new')
     expect(() => queue.schedule(0.5, Phase.ARRIVAL, 'fraction')).toThrow()
+  })
+})
+
+describe('integrated CPU and disk lifecycle', () => {
+  it('matches the complete proposal I/O oracle', () => {
+    const engine = new IntegratedEngine(ioPreset)
+    engine.runAll()
+    const result = engine.getSnapshot()
+    expect(result.processes[0]).toMatchObject({ completion: 14, blocked: 11, waiting: 0 })
+    expect(result.processes[1]).toMatchObject({ completion: 6, blocked: 0, waiting: 2 })
+    expect(result).toMatchObject({ busyTicks: 7, idleTicks: 7, contextSwitches: 1, utilization: 50 })
+    expect(result.segments).toEqual([
+      { pid: 'P1', start: 0, end: 2 }, { pid: 'P2', start: 2, end: 6 },
+      { pid: 'IDLE', start: 6, end: 13 }, { pid: 'P1', start: 13, end: 14 },
+    ])
+    expect(result.disk.requests[0]).toMatchObject({ enqueued: 2, start: 2, service: 11, completion: 13, movement: 10 })
+  })
+  it('does not preempt an active disk request and chooses SSTF from pending requests', () => {
+    const scenario = { ...ioPreset, disk: { ...ioPreset.disk, algorithm: 'SSTF' }, processes: [
+      { id: 'P1', arrival: 0, priority: 0, bursts: [{ kind: 'cpu', duration: 1 }, { kind: 'io', cylinder: 50 }, { kind: 'cpu', duration: 1 }] },
+      { id: 'P2', arrival: 0, priority: 0, bursts: [{ kind: 'cpu', duration: 1 }, { kind: 'io', cylinder: 5 }, { kind: 'cpu', duration: 1 }] },
+      { id: 'P3', arrival: 0, priority: 0, bursts: [{ kind: 'cpu', duration: 1 }, { kind: 'io', cylinder: 55 }, { kind: 'cpu', duration: 1 }] },
+    ] }
+    const engine = new IntegratedEngine(scenario)
+    engine.runAll()
+    expect([...engine.getSnapshot().disk.requests].sort((a, b) => a.start! - b.start!).map((request) => request.pid)).toEqual(['P1', 'P3', 'P2'])
+    expect(engine.getSnapshot().processes.every((process) => process.waiting >= 0 && process.blocked > 0)).toBe(true)
+  })
+  it('minimum service is one tick even at the same cylinder and zero configured costs', () => {
+    const engine = new IntegratedEngine({ ...ioPreset, disk: { ...ioPreset.disk, initialHead: 10, baseService: 0, seekCost: 0 } })
+    engine.runAll()
+    expect(engine.getSnapshot().disk.requests[0]).toMatchObject({ service: 1, movement: 0, start: 2, completion: 3 })
+  })
+  it('reset during pending disk completion gives the same replay', () => {
+    const engine = new IntegratedEngine(ioPreset)
+    for (let index = 0; index < 6; index++) engine.next()
+    expect(engine.getSnapshot().disk.active).toBeDefined()
+    engine.reset(); engine.runAll()
+    const fresh = new IntegratedEngine(ioPreset); fresh.runAll()
+    expect(engine.getSnapshot()).toEqual(fresh.getSnapshot())
+  })
+  it('conserves process time and unique running membership at every event', () => {
+    const engine = new IntegratedEngine({ ...ioPreset, cpu: { algorithm: 'ROUND_ROBIN', quantum: 1 } })
+    while (engine.next()) {
+      expect(engine.getSnapshot().processes.filter((process) => process.state === 'RUNNING').length).toBeLessThanOrEqual(1)
+      expect(new Set(engine.getSnapshot().ready).size).toBe(engine.getSnapshot().ready.length)
+    }
+    for (const process of engine.getSnapshot().processes) {
+      const cpu = process.bursts.reduce((total, burst) => total + (burst.kind === 'cpu' ? burst.duration : 0), 0)
+      expect(process.completion! - process.arrival).toBe(process.waiting + process.blocked + cpu)
+    }
   })
 })
 describe('integrated CPU model', () => {

@@ -68,3 +68,11 @@ export const cpuPreset: Scenario = {
     { id: 'P3', arrival: 2, priority: 3, bursts: [{ kind: 'cpu', duration: 1 }] },
   ], eventLimit: 20_000,
 }
+
+export const ioPreset: Scenario = {
+  ...cpuPreset, name: 'CPU + disk overlap',
+  processes: [
+    { id: 'P1', arrival: 0, priority: 1, bursts: [{ kind: 'cpu', duration: 2 }, { kind: 'io', cylinder: 10 }, { kind: 'cpu', duration: 1 }] },
+    { id: 'P2', arrival: 0, priority: 1, bursts: [{ kind: 'cpu', duration: 4 }] },
+  ],
+}

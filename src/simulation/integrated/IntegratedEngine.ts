@@ -15,7 +15,17 @@ export interface RuntimeProcess extends ScenarioProcess {
 }
 export interface TraceEntry { readonly sequence: number; readonly time: number; readonly phase: number; readonly type: string; readonly pid?: string; readonly message: string }
 export interface Segment { readonly pid: string; readonly start: number; readonly end: number }
-interface Action { kind: 'ARRIVAL' | 'CPU_COMPLETE' | 'QUANTUM' | 'DISPATCH'; pid?: string; token?: number }
+interface Action { kind: 'ARRIVAL' | 'CPU_COMPLETE' | 'DISK_COMPLETE' | 'QUANTUM' | 'DISPATCH'; pid?: string; token?: number }
+export interface IntegratedDiskRequest {
+  readonly id: number
+  readonly pid: string
+  readonly cylinder: number
+  readonly enqueued: number
+  start?: number
+  completion?: number
+  service?: number
+  movement?: number
+}
 export interface IntegratedSnapshot {
   readonly time: number
   readonly playing: boolean
@@ -33,6 +43,7 @@ export interface IntegratedSnapshot {
   readonly contextSwitches: number
   readonly utilization: number | null
   readonly throughput: number | null
+  readonly disk: { readonly head: number; readonly active?: IntegratedDiskRequest; readonly requests: readonly IntegratedDiskRequest[]; readonly totalMovement: number }
 }
 
 /** Independent integrated model. Laboratories never mutate this run. */
@@ -56,13 +67,16 @@ export class IntegratedEngine {
   private timer: ReturnType<typeof setInterval> | undefined
   private readonly listeners = new Set<() => void>()
   private cached: IntegratedSnapshot | undefined
+  private head = 0
+  private diskRequests: IntegratedDiskRequest[] = []
+  private activeDisk: IntegratedDiskRequest | undefined
 
   constructor(scenario: unknown) {
     this.scenario = parseScenario(scenario)
-    if (this.scenario.processes.some((process) => process.bursts.length !== 1)) throw new Error('CPU/I/O scripts are introduced in Phase 2; use CPU-only bursts for now')
     this.initialize()
   }
   private initialize(): void {
+    this.head = this.scenario.disk.initialHead
     this.processes = this.scenario.processes.map((process) => ({ ...structuredClone(process), state: 'NEW', burstIndex: 0, remaining: process.bursts[0].kind === 'cpu' ? process.bursts[0].duration : 0, readySince: 0, readySequence: 0, waiting: 0, blocked: 0 }))
     for (const process of this.processes) this.queue.schedule(process.arrival, Phase.ARRIVAL, { kind: 'ARRIVAL', pid: process.id })
   }
@@ -83,6 +97,7 @@ export class IntegratedEngine {
         busyTicks: this.busy, idleTicks: this.time - this.busy, contextSwitches: this.switches,
         utilization: this.time === 0 ? null : this.busy / this.time * 100,
         throughput: this.time === 0 ? null : this.processes.filter((process) => process.state === 'TERMINATED').length / this.time,
+        disk: { head: this.head, active: this.activeDisk ? { ...this.activeDisk } : undefined, requests: structuredClone(this.diskRequests), totalMovement: this.diskRequests.reduce((total, request) => total + (request.movement ?? 0), 0) },
       }
     }
     return this.cached
@@ -112,13 +127,33 @@ export class IntegratedEngine {
       this.previousPid = process.id
       this.previousEnd = this.time
       if (action.kind === 'CPU_COMPLETE') {
-        process.state = 'TERMINATED'
-        process.completion = this.time
-        message = `${process.id} completed its CPU burst and terminated.`
+        const io = process.bursts[process.burstIndex + 1]
+        if (io?.kind === 'io') {
+          process.burstIndex++
+          process.state = 'BLOCKED'
+          this.diskRequests.push({ id: this.diskRequests.length + 1, pid: process.id, cylinder: io.cylinder, enqueued: this.time })
+          message = `${process.id} finished a CPU burst, requested disk cylinder ${io.cylinder}, and became BLOCKED.`
+        } else {
+          process.state = 'TERMINATED'
+          process.completion = this.time
+          message = `${process.id} completed its final CPU burst and terminated.`
+        }
       } else {
         this.makeReady(process)
         message = `${process.id} used quantum ${this.scenario.cpu.quantum}; returned to the tail of the ready queue.`
       }
+      this.requestDispatch()
+    } else if (action.kind === 'DISK_COMPLETE' && process && this.activeDisk && this.activeDisk.id === action.token) {
+      const request = this.activeDisk
+      request.completion = this.time
+      this.head = request.cylinder
+      this.activeDisk = undefined
+      process.burstIndex++
+      const burst = process.bursts[process.burstIndex]
+      if (burst?.kind !== 'cpu') throw new Error('I/O completion must lead to a CPU burst')
+      process.remaining = burst.duration
+      this.makeReady(process)
+      message = `Disk interrupt: ${process.id} completed I/O at cylinder ${this.head}; returned to READY with CPU burst ${burst.duration}.`
       this.requestDispatch()
     } else if (action.kind === 'DISPATCH') {
       this.dispatchAt = undefined
@@ -138,6 +173,19 @@ export class IntegratedEngine {
           message = `${this.scenario.cpu.algorithm} selected ${selected.id}; ${duration} CPU ticks scheduled from ${this.time}.`
         } else message = 'No READY process; CPU remains idle until the next eligible event.'
       } else message = `${this.runner} keeps the CPU under the non-preemptive dispatch rule.`
+      if (!this.activeDisk) {
+        const pending = this.diskRequests.filter((request) => request.start === undefined)
+        pending.sort((a, b) => (this.scenario.disk.algorithm === 'SSTF' ? Math.abs(a.cylinder - this.head) - Math.abs(b.cylinder - this.head) : 0) || a.id - b.id)
+        const request = pending[0]
+        if (request) {
+          request.start = this.time
+          request.movement = Math.abs(request.cylinder - this.head)
+          request.service = Math.max(1, this.scenario.disk.baseService + this.scenario.disk.seekCost * request.movement)
+          this.activeDisk = request
+          this.queue.schedule(this.time + request.service, Phase.COMPLETION, { kind: 'DISK_COMPLETE', pid: request.pid, token: request.id })
+          message += ` Disk ${this.scenario.disk.algorithm} selected ${request.pid}: movement ${request.movement}, service ${request.service}, completes at ${this.time + request.service}.`
+        }
+      }
     }
     this.trace.push({ sequence: this.processed, time: this.time, phase: event.phase, type: action.kind, pid: action.pid ?? (action.kind === 'DISPATCH' ? this.runner : undefined), message: message || 'Stale service event ignored.' })
     if (this.trace.length > 1000) this.trace.shift()
@@ -156,6 +204,7 @@ export class IntegratedEngine {
   reset(): void {
     this.stopTimer(); this.queue.clear(); this.cpuToken++
     this.time = 0; this.runner = undefined; this.segments = []; this.trace = []; this.processed = 0; this.readySequence = 0
+    this.diskRequests = []; this.activeDisk = undefined
     this.busy = 0; this.switches = 0; this.segmentStart = 0; this.previousPid = undefined; this.previousEnd = -1; this.dispatchAt = undefined
     this.initialize(); this.notify()
   }
