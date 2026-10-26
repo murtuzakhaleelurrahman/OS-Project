@@ -36,6 +36,44 @@ export type SimulationEventType =
   | 'ADDRESS_TRANSLATION_FAILED'
   | 'PAGE_FAULT'
   | 'PAGING_RESET'
+  | 'PAGE_REFERENCE'
+  | 'PAGE_HIT'
+  | 'PAGE_REPLACEMENT'
+  | 'PAGE_EVICTED'
+  | 'PAGE_LOADED'
+  | 'REPLACEMENT_ALGORITHM_CHANGED'
+  | 'REPLACEMENT_SIMULATION_RESET'
+  | 'DISK_INITIALIZED'
+  | 'DISK_REQUEST_ADDED'
+  | 'DISK_REQUEST_SELECTED'
+  | 'DISK_REQUEST_SERVICED'
+  | 'DISK_HEAD_MOVED'
+  | 'DISK_QUEUE_EMPTY'
+  | 'DISK_ALGORITHM_CHANGED'
+  | 'DISK_DIRECTION_CHANGED'
+  | 'DISK_RESET'
+  | 'MUTEX_CREATED'
+  | 'MUTEX_ACQUIRED'
+  | 'MUTEX_RELEASED'
+  | 'MUTEX_BLOCKED'
+  | 'MUTEX_OWNERSHIP_TRANSFERRED'
+  | 'MUTEX_OPERATION_FAILED'
+  | 'SEMAPHORE_CREATED'
+  | 'SEMAPHORE_ACQUIRED'
+  | 'SEMAPHORE_RELEASED'
+  | 'SEMAPHORE_BLOCKED'
+  | 'SEMAPHORE_WAKE'
+  | 'PROCESS_BLOCKED'
+  | 'PROCESS_UNBLOCKED'
+  | 'CRITICAL_SECTION_ENTERED'
+  | 'CRITICAL_SECTION_EXITED'
+  | 'PRODUCER_WAITING'
+  | 'PRODUCER_PRODUCED'
+  | 'CONSUMER_WAITING'
+  | 'CONSUMER_CONSUMED'
+  | 'BUFFER_FULL'
+  | 'BUFFER_EMPTY'
+  | 'SYNCHRONIZATION_RESET'
 
 export interface SimulationEvent {
   readonly id: number
@@ -43,6 +81,7 @@ export interface SimulationEvent {
   readonly type: SimulationEventType
   readonly message: string
   readonly processId?: string
+  readonly resourceId?: string
 }
 
 export type EventListener = (event: SimulationEvent) => void

@@ -8,6 +8,8 @@ export const ProcessState = {
 
 export type ProcessState = (typeof ProcessState)[keyof typeof ProcessState]
 
+export type SynchronizationBlockedReason = 'WAITING_FOR_MUTEX' | 'WAITING_FOR_SEMAPHORE'
+
 export interface Process {
   readonly pid: string
   readonly name: string
@@ -20,6 +22,8 @@ export interface Process {
   readonly programCounter: number
   readonly firstStartTime?: number
   readonly completionTime?: number
+  readonly blockedReason?: SynchronizationBlockedReason
+  readonly blockedResourceId?: string
 }
 
 export interface ProcessConfiguration {

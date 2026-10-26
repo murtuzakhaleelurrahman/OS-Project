@@ -4,6 +4,7 @@ import {
   ProcessState,
   type Process,
   type ProcessConfiguration,
+  type SynchronizationBlockedReason,
 } from './Process'
 
 type MutableProcess = { -readonly [Key in keyof Process]: Process[Key] }
@@ -85,9 +86,10 @@ export class ProcessManager {
     return this.getAllProcesses().filter((process) => process.state !== ProcessState.TERMINATED)
   }
 
-  transitionProcess(pid: string, nextState: ProcessState): Process {
+  transitionProcess(pid: string, nextState: ProcessState, synchronizationBlock = false): Process {
     const process = this.requireProcess(pid)
-    if (!isValidProcessTransition(process.state, nextState)) {
+    const synchronizationTransition = synchronizationBlock && nextState === ProcessState.BLOCKED && process.state === ProcessState.READY
+    if (!isValidProcessTransition(process.state, nextState) && !synchronizationTransition) {
       this.events.emit({
         tick: this.getCurrentTick(),
         type: 'PROCESS_OPERATION_REJECTED',
@@ -109,6 +111,29 @@ export class ProcessManager {
         ? `Process ${pid} terminated`
         : `${pid}: ${previousState} -> ${nextState}`,
     })
+    this.changed()
+    return this.copy(process)
+  }
+
+  setSynchronizationBlock(pid: string, reason: SynchronizationBlockedReason, resourceId: string): Process {
+    const process = this.requireProcess(pid)
+    if (resourceId.trim().length === 0) throw new Error('Synchronization resource ID is required')
+    if (process.state !== ProcessState.READY && process.state !== ProcessState.RUNNING) {
+      throw new Error(`Process ${pid} must be READY or RUNNING to block for synchronization`)
+    }
+    this.transitionProcess(pid, ProcessState.BLOCKED, true)
+    process.blockedReason = reason
+    process.blockedResourceId = resourceId
+    this.changed()
+    return this.copy(process)
+  }
+
+  clearSynchronizationBlock(pid: string): Process {
+    const process = this.requireProcess(pid)
+    if (process.state !== ProcessState.BLOCKED) throw new Error(`Process ${pid} is not BLOCKED`)
+    process.blockedReason = undefined
+    process.blockedResourceId = undefined
+    this.transitionProcess(pid, ProcessState.READY)
     this.changed()
     return this.copy(process)
   }

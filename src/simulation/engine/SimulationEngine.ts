@@ -8,6 +8,8 @@ import { MemoryManager } from '../memory/MemoryManager'
 import type { MemorySnapshot } from '../memory/Memory'
 import type { PagingSnapshot } from '../memory/PageManager'
 import { SimulationClock } from './SimulationClock'
+import { DiskManager, type DiskSnapshot } from '../disk/DiskManager'
+import { SynchronizationManager, type SynchronizationSnapshot } from '../synchronization/SynchronizationManager'
 
 export interface SimulationSnapshot {
   readonly tick: number
@@ -24,6 +26,8 @@ export interface SimulationSnapshot {
   readonly cpu: CpuSnapshot
   readonly memory: MemorySnapshot
   readonly paging: PagingSnapshot
+  readonly disk: DiskSnapshot
+  readonly synchronization: SynchronizationSnapshot
 }
 
 export interface TickableSimulationModule {
@@ -36,6 +40,8 @@ export class SimulationEngine {
   readonly processManager: ProcessManager
   readonly cpuController: CPU
   readonly memoryManager: MemoryManager
+  readonly diskManager: DiskManager
+  readonly synchronizationManager: SynchronizationManager
   private readonly listeners = new Set<() => void>()
   private readonly tickableModules = new Set<TickableSimulationModule>()
   private cachedSnapshot: SimulationSnapshot | undefined
@@ -72,6 +78,19 @@ export class SimulationEngine {
       getProcess: (pid) => this.processManager.getProcess(pid),
       onChange: () => this.notify(),
     })
+    this.diskManager = new DiskManager({
+      events: this.events,
+      getCurrentTick: () => this.clock.tickNumber,
+      onChange: () => this.notify(),
+    })
+    this.tickableModules.add(this.diskManager)
+    this.synchronizationManager = new SynchronizationManager({
+      processManager: this.processManager,
+      events: this.events,
+      getCurrentTick: () => this.clock.tickNumber,
+      onChange: () => this.notify(),
+    })
+    this.tickableModules.add(this.synchronizationManager)
   }
 
   start(): void {
@@ -121,9 +140,11 @@ export class SimulationEngine {
     this.clock.reset()
     this.cpuController.reset()
     this.processManager.reset()
+    this.diskManager.reset()
     this.events.clear()
     this.events.emit({ tick: this.clock.tickNumber, type: 'CLOCK_RESET', message: 'Simulation reset' })
     this.memoryManager.reset()
+    this.synchronizationManager.reset(false)
     this.notify()
   }
 
@@ -144,6 +165,8 @@ export class SimulationEngine {
         cpu: this.cpuController.getSnapshot(),
         memory: this.memoryManager.getMemorySnapshot(),
         paging: this.memoryManager.getPagingSnapshot(),
+        disk: this.diskManager.getSnapshot(),
+        synchronization: this.synchronizationManager.getSnapshot(),
       }
     }
     return this.cachedSnapshot

@@ -1,5 +1,6 @@
 import { EventSystem } from '../events/EventSystem'
 import type { Process } from '../process/Process'
+import { createPageReplacementStrategy, PageReplacementAlgorithm, type ReplacementFrame, type ReplacementHistoryEntry } from './PageReplacement'
 
 export interface PagingConfiguration {
   readonly totalMemory: number
@@ -49,6 +50,19 @@ export interface PagingSnapshot {
   readonly frameUtilization: number
   readonly totalAllocatedPages: number
   readonly totalInternalFragmentation: number
+  readonly replacementAlgorithm: PageReplacementAlgorithm
+  readonly totalReferences: number
+  readonly pageHits: number
+  readonly pageFaults: number
+  readonly pageReplacements: number
+  readonly hitRatio: number
+  readonly faultRatio: number
+  readonly replacementRatio: number
+  readonly currentReferenceIndex: number
+  readonly currentRequestedPage?: number
+  readonly referenceStringLength: number
+  readonly replacementFrames: readonly ReplacementFrame[]
+  readonly replacementHistory: readonly ReplacementHistoryEntry[]
 }
 
 export interface PageManagerOptions {
@@ -59,6 +73,7 @@ export interface PageManagerOptions {
   readonly totalMemory: number
   readonly pageSize: number
   readonly onChange?: () => void
+  readonly initialReplacementAlgorithm?: PageReplacementAlgorithm
 }
 
 export function validatePagingConfiguration(totalMemory: number, pageSize: number): void {
@@ -76,6 +91,14 @@ export class PageManager {
   private readonly onChange?: () => void
   private frames: Frame[]
   private pageTables = new Map<string, PageTable>()
+  private replacementAlgorithm: PageReplacementAlgorithm
+  private replacementFrames: ReplacementFrame[]
+  private referenceString: number[] = []
+  private replacementHistory: ReplacementHistoryEntry[] = []
+  private currentReferenceIndex = 0
+  private pageHits = 0
+  private pageFaults = 0
+  private pageReplacements = 0
 
   constructor(options: PageManagerOptions) {
     validatePagingConfiguration(options.totalMemory, options.pageSize)
@@ -83,8 +106,11 @@ export class PageManager {
     this.getCurrentTick = options.getCurrentTick
     this.getProcess = options.getProcess
     this.isPagedMode = options.isPagedMode
+    this.onChange = options.onChange
     this.configuration = { totalMemory: options.totalMemory, pageSize: options.pageSize, totalFrames: options.totalMemory / options.pageSize }
     this.frames = this.createFrames()
+    this.replacementAlgorithm = options.initialReplacementAlgorithm ?? PageReplacementAlgorithm.FIFO
+    this.replacementFrames = this.createReplacementFrames()
   }
 
   announceInitialized(): void {
@@ -98,6 +124,78 @@ export class PageManager {
   }
   getAllPageTables(): readonly PageTable[] { return [...this.pageTables.values()].map((table) => this.copyTable(table)) }
   getFrames(): readonly Frame[] { return this.frames.map((frame) => ({ ...frame })) }
+
+  getReplacementAlgorithm(): PageReplacementAlgorithm { return this.replacementAlgorithm }
+  setReplacementAlgorithm(algorithm: PageReplacementAlgorithm): void {
+    if (algorithm === this.replacementAlgorithm) return
+    this.replacementAlgorithm = algorithm
+    this.resetReplacementSimulation(false)
+    this.events.emit({ tick: this.getCurrentTick(), type: 'REPLACEMENT_ALGORITHM_CHANGED', message: `Replacement algorithm changed to ${algorithm}` })
+    this.changed()
+  }
+  setReferenceString(references: readonly number[]): void {
+    if (references.some((page) => !Number.isInteger(page) || page < 0)) throw new Error('Reference string must contain only non-negative integers')
+    this.referenceString = [...references]
+    this.resetReplacementSimulation(false)
+  }
+  getReferenceString(): readonly number[] { return [...this.referenceString] }
+  stepReference(): ReplacementHistoryEntry {
+    if (!this.isPagedMode()) throw new Error('Cannot simulate page replacement outside Paged mode')
+    if (this.currentReferenceIndex >= this.referenceString.length) throw new Error('Reference string is complete')
+    const referenceIndex = this.currentReferenceIndex
+    const requestedPage = this.referenceString[referenceIndex]
+    this.events.emit({ tick: this.getCurrentTick(), type: 'PAGE_REFERENCE', message: `Page reference: ${requestedPage}` })
+    const hitFrame = this.replacementFrames.find((frame) => frame.pageNumber === requestedPage)
+    let result: ReplacementHistoryEntry
+    if (hitFrame !== undefined) {
+      this.pageHits += 1
+      if (this.replacementAlgorithm === PageReplacementAlgorithm.LRU) hitFrame.lastUsedAt = referenceIndex
+      this.events.emit({ tick: this.getCurrentTick(), type: 'PAGE_HIT', message: `PAGE_HIT: page ${requestedPage} in frame ${hitFrame.frameNumber}` })
+      result = this.createHistory(referenceIndex, requestedPage, 'HIT')
+    } else {
+      this.pageFaults += 1
+      this.events.emit({ tick: this.getCurrentTick(), type: 'PAGE_FAULT', message: `PAGE_FAULT: page ${requestedPage}` })
+      const freeFrame = this.replacementFrames.find((frame) => frame.pageNumber === null)
+      if (freeFrame !== undefined) {
+        freeFrame.pageNumber = requestedPage
+        freeFrame.loadedAt = referenceIndex
+        freeFrame.lastUsedAt = referenceIndex
+        this.events.emit({ tick: this.getCurrentTick(), type: 'PAGE_LOADED', message: `Page ${requestedPage} loaded into frame ${freeFrame.frameNumber}` })
+        result = this.createHistory(referenceIndex, requestedPage, 'FAULT', undefined, freeFrame.frameNumber)
+      } else {
+        const victim = createPageReplacementStrategy(this.replacementAlgorithm).selectVictim({ frames: this.replacementFrames, currentIndex: referenceIndex, futureReferences: this.referenceString })
+        const victimPage = victim.pageNumber
+        const victimFrame = victim.frameNumber
+        if (victimPage === null) throw new Error('Cannot replace a free frame')
+        victim.pageNumber = requestedPage
+        victim.loadedAt = referenceIndex
+        victim.lastUsedAt = referenceIndex
+        this.pageReplacements += 1
+        this.events.emit({ tick: this.getCurrentTick(), type: 'PAGE_REPLACEMENT', message: `${this.replacementAlgorithm} selected page ${victimPage} in frame ${victimFrame}` })
+        this.events.emit({ tick: this.getCurrentTick(), type: 'PAGE_EVICTED', message: `Page ${victimPage} evicted from frame ${victimFrame}` })
+        this.events.emit({ tick: this.getCurrentTick(), type: 'PAGE_LOADED', message: `Page ${requestedPage} loaded into frame ${victimFrame}` })
+        result = this.createHistory(referenceIndex, requestedPage, 'FAULT', victimPage, victimFrame)
+      }
+    }
+    this.replacementHistory.push(result)
+    this.currentReferenceIndex += 1
+    this.changed()
+    return { ...result, framesAfter: result.framesAfter.map((frame) => ({ ...frame })) }
+  }
+  runAllReferences(): readonly ReplacementHistoryEntry[] {
+    while (this.currentReferenceIndex < this.referenceString.length) this.stepReference()
+    return this.replacementHistory.map((entry) => ({ ...entry, framesAfter: entry.framesAfter.map((frame) => ({ ...frame })) }))
+  }
+  resetReplacementSimulation(emitEvent = true): void {
+    this.replacementFrames = this.createReplacementFrames()
+    this.replacementHistory = []
+    this.currentReferenceIndex = 0
+    this.pageHits = 0
+    this.pageFaults = 0
+    this.pageReplacements = 0
+    if (emitEvent) this.events.emit({ tick: this.getCurrentTick(), type: 'REPLACEMENT_SIMULATION_RESET', message: 'Replacement simulation reset' })
+    this.changed()
+  }
 
   allocateProcessPages(pid: string): PageTable {
     this.requirePagedMode()
@@ -179,12 +277,26 @@ export class PageManager {
         const process = this.getProcess?.(table.ownerPid)
         return total + (process === undefined ? 0 : table.pages.length * this.configuration.pageSize - process.memoryRequirement)
       }, 0),
+      replacementAlgorithm: this.replacementAlgorithm,
+      totalReferences: this.replacementHistory.length,
+      pageHits: this.pageHits,
+      pageFaults: this.pageFaults,
+      pageReplacements: this.pageReplacements,
+      hitRatio: this.ratio(this.pageHits, this.replacementHistory.length),
+      faultRatio: this.ratio(this.pageFaults, this.replacementHistory.length),
+      replacementRatio: this.ratio(this.pageReplacements, this.replacementHistory.length),
+      currentReferenceIndex: this.currentReferenceIndex,
+      currentRequestedPage: this.referenceString[this.currentReferenceIndex - 1],
+      referenceStringLength: this.referenceString.length,
+      replacementFrames: this.replacementFrames.map((frame) => ({ ...frame })),
+      replacementHistory: this.replacementHistory.map((entry) => ({ ...entry, framesAfter: entry.framesAfter.map((frame) => ({ ...frame })) })),
     }
   }
 
   reset(): void {
     this.frames = this.createFrames()
     this.pageTables.clear()
+    this.resetReplacementSimulation(false)
     this.events.emit({ tick: this.getCurrentTick(), type: 'PAGING_RESET', message: 'Paging reset' })
     this.changed()
   }
@@ -192,6 +304,9 @@ export class PageManager {
   private createFrames(): Frame[] {
     return Array.from({ length: this.configuration.totalFrames }, (_, frameNumber) => ({ frameNumber, startAddress: frameNumber * this.configuration.pageSize, endAddress: (frameNumber + 1) * this.configuration.pageSize, pageNumber: null, ownerPid: null, occupied: false }))
   }
+  private createReplacementFrames(): ReplacementFrame[] { return Array.from({ length: this.configuration.totalFrames }, (_, frameNumber) => ({ frameNumber, pageNumber: null, loadedAt: -1, lastUsedAt: -1 })) }
+  private createHistory(referenceIndex: number, requestedPage: number, result: 'HIT' | 'FAULT', victimPage?: number, victimFrame?: number): ReplacementHistoryEntry { return { referenceIndex, requestedPage, result, victimPage, victimFrame, framesAfter: this.replacementFrames.map((frame) => ({ ...frame })) } }
+  private ratio(value: number, total: number): number { return total === 0 ? 0 : (value / total) * 100 }
   private requirePagedMode(): void { if (!this.isPagedMode()) throw new Error('Cannot perform paging while Contiguous mode is active') }
   private failAllocation(pid: string, reason: string): never { this.events.emit({ tick: this.getCurrentTick(), type: 'PAGE_ALLOCATION_FAILED', processId: pid, message: `Page allocation failed: ${reason}` }); throw new Error(reason) }
   private copyTable(table: PageTable): PageTable { return { ownerPid: table.ownerPid, pages: table.pages.map((page) => ({ ...page })) } }

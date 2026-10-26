@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { SimulationEngine } from '../src/simulation/engine/SimulationEngine'
 import { MemoryMode } from '../src/simulation/memory/Memory'
 import { validatePagingConfiguration } from '../src/simulation/memory/PageManager'
+import { FifoReplacement, LruReplacement, OptimalReplacement, PageReplacementAlgorithm } from '../src/simulation/memory/PageReplacement'
 
 function createPagedEngine() {
   const engine = new SimulationEngine()
@@ -81,5 +82,50 @@ describe('paging foundation', () => {
     expect(engine.getSnapshot().paging).toMatchObject({ usedFrames: 0, freeFrames: 16, totalAllocatedPages: 0, totalInternalFragmentation: 0 })
     engine.memoryManager.pagingManager.reset()
     expect(engine.getSnapshot().paging.pageTables).toEqual([])
+  })
+})
+
+describe('page replacement', () => {
+  const fullFrames = Array.from({ length: 3 }, (_, frameNumber) => ({ frameNumber, pageNumber: frameNumber + 1, loadedAt: frameNumber, lastUsedAt: frameNumber }))
+
+  it('selects FIFO victims by residency order and ignores hits', () => {
+    const strategy = new FifoReplacement()
+    expect(strategy.selectVictim({ frames: fullFrames, currentIndex: 3, futureReferences: [1, 2, 3, 1, 4] }).pageNumber).toBe(1)
+  })
+
+  it('selects the LRU victim by last reference time', () => {
+    const frames = fullFrames.map((frame) => frame.pageNumber === 1 ? { ...frame, lastUsedAt: 3 } : frame)
+    expect(new LruReplacement().selectVictim({ frames, currentIndex: 4, futureReferences: [1, 2, 3, 1, 4] }).pageNumber).toBe(2)
+  })
+
+  it('selects never-used-again pages with deterministic frame tie-breaking for Optimal', () => {
+    expect(new OptimalReplacement().selectVictim({ frames: fullFrames, currentIndex: 3, futureReferences: [1, 2, 3, 4] }).pageNumber).toBe(1)
+  })
+
+  it('counts hits, faults, replacements, and keeps algorithm runs deterministic', () => {
+    const run = (algorithm: PageReplacementAlgorithm) => {
+      const engine = new SimulationEngine()
+      engine.memoryManager.setMode(MemoryMode.PAGED)
+      const manager = engine.memoryManager.pagingManager
+      manager.setReplacementAlgorithm(algorithm)
+      manager.setReferenceString([...Array(16).keys(), 0, 16])
+      manager.runAllReferences()
+      return manager.getSnapshot()
+    }
+    const fifo = run(PageReplacementAlgorithm.FIFO)
+    const lru = run(PageReplacementAlgorithm.LRU)
+    const optimal = run(PageReplacementAlgorithm.OPTIMAL)
+    expect(fifo).toMatchObject({ totalReferences: 18, pageHits: 1, pageFaults: 17, pageReplacements: 1, replacementAlgorithm: 'FIFO' })
+    expect(fifo.replacementHistory.at(-1)).toMatchObject({ requestedPage: 16, victimPage: 0, victimFrame: 0 })
+    expect(lru.replacementHistory.at(-1)).toMatchObject({ requestedPage: 16, victimPage: 1, victimFrame: 1 })
+    expect(optimal.replacementHistory.at(-1)).toMatchObject({ requestedPage: 16, victimPage: 0, victimFrame: 0 })
+    expect(run(PageReplacementAlgorithm.LRU).replacementHistory).toEqual(lru.replacementHistory)
+  })
+
+  it('rejects malformed references and keeps empty ratios at zero', () => {
+    const engine = new SimulationEngine()
+    const manager = engine.memoryManager.pagingManager
+    expect(() => manager.setReferenceString([1, -1])).toThrow('non-negative')
+    expect(manager.getSnapshot()).toMatchObject({ totalReferences: 0, hitRatio: 0, faultRatio: 0, replacementRatio: 0 })
   })
 })
