@@ -76,3 +76,8 @@ export const ioPreset: Scenario = {
     { id: 'P2', arrival: 0, priority: 1, bursts: [{ kind: 'cpu', duration: 4 }] },
   ],
 }
+
+export const diskPreset: Scenario = {
+  ...ioPreset, name: 'Disk queue comparison',
+  processes: [50, 5, 55, 45].map((cylinder, index) => ({ id: `P${index + 1}`, arrival: 0, priority: index + 1, bursts: [{ kind: 'cpu', duration: 1 }, { kind: 'io', cylinder }, { kind: 'cpu', duration: 1 }] })),
+}

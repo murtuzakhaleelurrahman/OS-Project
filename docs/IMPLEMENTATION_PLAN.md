@@ -12,7 +12,7 @@ Existing algorithm laboratories remain available. Optional extensions do not cou
 | 2 | CPU/disk bursts, FCFS/SSTF service, blocking/resumption, ready/blocked accounting | P1 completes at 14, P2 at 6, blocked=11, CPU work=7; quantum boundary ordering; idle gaps | Complete: 118 tests, build and lint pass |
 | 3 | Banker safety and resource requests | Dimension/value validation, reproducible safe sequence, unsafe request rollback | Complete: 122 tests, build and lint pass |
 | 4 | Scripted synchronization actors, lost update, mutex, semaphores, bounded buffer | Counter=1 without protection, counter=2 with mutex; FIFO wakeup and capacity invariant | Complete: 127 tests, build and lint pass |
-| 5 | Presets, fresh-input comparisons, scenario/result JSON and trace/metric CSV | Replay exported scenarios; same input across policies; exported assumptions and units | Planned |
+| 5 | Presets, fresh-input comparisons, scenario/result JSON and trace/metric CSV | Replay exported scenarios; same input across policies; exported assumptions and units | Complete: 131 tests, build and lint pass |
 | 6 | Memory lab configuration, navigation, documentation and acceptance | Paging 7/6/5 faults; translation 5572; allocation/free/coalescing; all tests/build/lint pass | Planned |
 
 ## Model contract
