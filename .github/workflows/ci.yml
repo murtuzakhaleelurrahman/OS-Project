@@ -39,7 +39,7 @@ jobs:
 
   browser:
     name: Production browser smoke tests
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6.1.0
@@ -50,7 +50,9 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - name: Install headless Chromium
+        run: npx playwright install chromium --only-shell
+        timeout-minutes: 5
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v7
         if: always()
