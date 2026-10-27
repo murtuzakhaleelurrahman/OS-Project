@@ -18,7 +18,7 @@ Validation date: 26 October 2026. Commands run from the repository root.
 | Edge cases | Empty workload/N/A ratios, idle gaps, exact quantum completion, arrival at quantum boundary, duplicate disk cylinders, one-frame/repeated-page references, invalid matrices, unmap/remap, failed allocation, coalescing, reset during pending CPU/disk completion, event limit and trace retention |
 | State invariants | At most one runner; no duplicate ready membership; turnaround = CPU + READY wait + BLOCKED time; buffer occupancy and production/consumption conservation; safe requests conserve total resources |
 
-The original 102-test suite remains; acceptance, laboratory and export tests extend it. Final commands and counts are recorded in IMPLEMENTATION_PLAN.md. Production compilation and lint are required for each phase. The phase commits were published on GitHub; subsequent checks are automated by `.github/workflows/ci.yml`. Historical browser checks below were performed manually and are distinct from automated CI evidence.
+The historical baseline at commit `951e601` contained 102 tests. The current suite contains 148 tests; the additional acceptance, laboratory, export and preset tests extend that baseline. IMPLEMENTATION_PLAN.md records the historical count at each phase, rather than the current total. Production compilation and lint are required for each phase. The phase commits were published on GitHub; subsequent checks are automated by `.github/workflows/ci.yml`. Historical browser checks below were performed manually and are distinct from automated CI evidence.
 
 ## Browser smoke checks
 

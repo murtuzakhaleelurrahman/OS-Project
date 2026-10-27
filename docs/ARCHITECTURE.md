@@ -25,3 +25,9 @@ Legacy tick-based CPU and standalone disk tools are retained behind an explicit 
 There is no persistence across reload, authentication, backend or deployment. Exports provide manual persistence. CSS uses responsive layouts and horizontal table scrolling. Event trace retention and execution limits constrain large runs; synchronous comparisons may briefly occupy the browser for unusually large scenarios. A Web Worker is a possible later enhancement.
 
 The simulation does not execute real machine instructions or access host processes, RAM or disks. Disk costs are illustrative integer parameters, not hardware predictions. CPU switch overhead and dirty-page writeback are not modelled.
+
+## Why two scheduling implementations remain
+
+`src/simulation/cpu/Schedulers.ts` supports the original tick-based engine and its manual CPU/synchronization demonstrations. Keeping it preserves the earlier dashboard API and its regression tests. It is accessed only through the explicitly labelled additional manual tools; it does not schedule the integrated workload.
+
+`IntegratedEngine.select()` belongs to the event-driven CPU/disk model. It selects the next CPU burst using ready-entry timestamps, including returns from I/O, while the earlier tools operate on a single CPU burst per process. Combining the two immediately would change the legacy teaching model and its command API. The duplication is a compatibility boundary, not two schedulers acting on the same state. Future scheduling changes must check both implementations and their common FCFS/SJF examples, or migrate and retire the legacy tools in a dedicated change.

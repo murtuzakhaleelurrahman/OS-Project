@@ -1,5 +1,7 @@
 # Mini Operating System Dashboard
 
+[![Verify simulator](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/workflows/ci.yml)
+
 A browser-based educational OS simulator built with React, TypeScript and Vite. No backend is required. The integrated system models **one CPU and one disk** with a deterministic event queue. Memory, concurrency and resource-safety laboratories are explicitly separate experiments.
 
 ## Run
