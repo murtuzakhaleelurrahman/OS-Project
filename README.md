@@ -58,7 +58,7 @@ The UI editor contains the complete schema. `schemaVersion` is 1. Each process h
 {"id":"P1","arrival":0,"priority":1,"bursts":[{"kind":"cpu","duration":2},{"kind":"io","cylinder":10},{"kind":"cpu","duration":1}]}
 ```
 
-CPU configuration supplies `algorithm` and a positive `quantum`. Disk configuration supplies `algorithm`, `cylinders`, `initialHead`, `baseService` and `seekCost`. `eventLimit` defaults to 20,000. Inputs are validated before simulation. Changing a policy resets to a fresh copy of the workload. Switching views preserves experiments and pauses integrated playback; refreshing the page resets them.
+CPU configuration supplies `algorithm` and a positive `quantum`. Disk configuration supplies `algorithm`, `cylinders`, `initialHead`, `baseService` and `seekCost`. `eventLimit` defaults to 20,000. Inputs are validated before simulation. Changing a policy resets to a fresh copy of the workload. Switching views preserves experiments and pauses integrated playback; refreshing resets playback (a scenario in the URL loads at event zero).
 
 ## Validation
 
@@ -90,7 +90,7 @@ An optional `memory` object supplies `mode` (fixed/demand), `frames`, `pageSize`
 
 `cpu.contextSwitchCost` is optional. Initial dispatch and dispatch after an idle gap are free; direct changes to a different process incur the configured overhead, including faulting zero-work dispatches. The selected target waits in READY during the switch. CPU work, switch overhead and idle time sum to elapsed time. For each completed process, turnaround = productive CPU + READY wait + blocked time + job-queue wait.
 
-The integrated view now includes reserved/resident frames, faults/hits/replacements, job waits and process-state timeline lanes. See [the extension roadmap](docs/EXTENSION_PLAN.md) for E2–E7; planned features are not yet implemented.
+The integrated view now includes reserved/resident frames, faults/hits/replacements, job waits and process-state timeline lanes. See [the extension roadmap](docs/EXTENSION_PLAN.md) for each extension's completion status.
 ## Expanded scheduling extension (E2)
 
 The integrated model now offers eight CPU policies and six disk policies, with all 48 combinations run from fresh copies of the same input. New presets demonstrate **SRTF arrival preemption**, **Priority aging prevents starvation**, **MLFQ interactive arrival**, and **Disk sweep and wrap paths**.
@@ -102,3 +102,12 @@ MLFQ defaults to quanta `[1,2,4]`, configurable as `cpu.mlfqQuanta`, with `cpu.b
 Disk `initialDirection` defaults to UP and is selectable for sweep policies. SCAN visits the physical endpoint before reversing; C-SCAN includes endpoint and wrap movement. LOOK/C-LOOK reverse/jump at pending request extremes. All legs count toward movement and service time. Active routes are non-preemptive. The head-path chart displays completed route waypoints, not fabricated intermediate timestamps, and retains the latest 200 points for large runs. Sweep travel stops when the final pending request is serviced.
 
 See `docs/EXTENSION_PLAN.md` for the precise contracts. FCFS/SJF/Priority ranking is now shared by the legacy and integrated models through adapters; their distinct execution clocks remain separate.
+
+## Learning and reproducible experiments (E3)
+
+- **Time travel:** use Previous event, or Prepare replay slider to jump to any queue-event index. Replay rebuilds the exact CPU/disk/memory state, even beyond the 1,000-entry trace retention cap. Same-tick events remain distinct. An event-limited run has a labelled incomplete history.
+- **Predict first:** try the FCFS-order or one-frame page-fault exercise. Submit a guess to reveal the actual engine result and an explanation. These lessons are independent of the active scenario.
+- **Seeded comparisons:** choose an unsigned 32-bit seed, up to 100 workloads and up to 12 processes per workload. All eight CPU policies receive identical generated CPU/I/O scripts, arrivals and priorities; the selected disk policy and costs stay fixed. Memory is disabled for this study. Charts compare mean READY wait, turnaround and throughput. Limited runs produce N/A means; Stop comparison keeps a labelled partial sample. Repeating a seed and configuration reproduces the results.
+- **Save & share:** Save in browser stores one workload locally; Load saved workload restores it. Create share link provides a selectable URL containing the complete scenario, loaded at event zero. Links are limited to 16,000 characters and validated before loading; use JSON export for larger workloads. Localhost links require another local copy of the app; hosting is planned in E4.
+
+Saving and sharing are explicit. Playback, predictions and comparison results are not automatically stored. Existing process-state lanes distinguish I/O blocking from page faults and READY waits, while the disk chart shows physical routes.

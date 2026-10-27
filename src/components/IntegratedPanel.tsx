@@ -9,18 +9,37 @@ import { integratedCpuPolicies } from '../simulation/shared/CpuPolicy'
 import { integratedDiskPolicies } from '../simulation/integrated/DiskPolicy'
 import { SchedulingOptions } from './SchedulingOptions'
 import { DiskPathChart } from './DiskPathChart'
+import { PredictionLesson, ReplayControls, ScenarioSharing, SeededComparison } from './LearningTools'
+import { scenarioFromFragment } from '../simulation/integrated/LearningExperiments'
 
 const number = (value: number | null | undefined, suffix = '') => value == null ? 'N/A'
   : `${Number.isInteger(value) ? value : Math.abs(value) > 0 && Math.abs(value) < 0.01 ? value.toPrecision(3) : value.toFixed(2)}${suffix}`
 
 export function IntegratedPanel({ active = true }: { active?: boolean }) {
-  const [engine, setEngine] = useState(() => new IntegratedEngine(ioPreset))
-  const [input, setInput] = useState(JSON.stringify(ioPreset, null, 2))
-  const [error, setError] = useState('')
+  const [initial] = useState(() => {
+    try { return { scenario: scenarioFromFragment(window.location.hash) ?? ioPreset, error: '' } }
+    catch (failure) { return { scenario: ioPreset, error: failure instanceof Error ? failure.message : 'Invalid share link' } }
+  })
+  const [engine, setEngine] = useState(() => new IntegratedEngine(initial.scenario))
+  const [input, setInput] = useState(JSON.stringify(initial.scenario, null, 2))
+  const [error, setError] = useState(initial.error)
   const [comparisons, setComparisons] = useState<ComparisonRow[]>([])
   const snapshot = useSyncExternalStore(engine.subscribe, engine.getSnapshot)
   useEffect(() => () => engine.pause(), [engine])
   useEffect(() => { if (!active) engine.pause() }, [active, engine])
+  useEffect(() => {
+    const openSharedScenario = () => {
+      try {
+        const scenario = scenarioFromFragment(window.location.hash)
+        if (!scenario) return
+        const next = new IntegratedEngine(scenario)
+        setEngine((previous) => { previous.dispose(); return next })
+        setInput(JSON.stringify(next.scenario, null, 2)); setComparisons([]); setError('')
+      } catch (failure) { setError(failure instanceof Error ? failure.message : 'Invalid share link') }
+    }
+    window.addEventListener('hashchange', openSharedScenario)
+    return () => window.removeEventListener('hashchange', openSharedScenario)
+  }, [])
   const load = (value: unknown) => {
     try {
       const next = new IntegratedEngine(value)
@@ -67,6 +86,8 @@ export function IntegratedPanel({ active = true }: { active?: boolean }) {
         <button className="quiet" onClick={() => engine.reset()}>Reset</button>
       </div>
       <SchedulingOptions scenario={engine.scenario} load={load} />
+      <ReplayControls key={`replay-${JSON.stringify(engine.scenario)}`} engine={engine} snapshot={snapshot} replace={(next) => { engine.dispose(); setEngine(next) }} />
+      <ScenarioSharing key={`sharing-${JSON.stringify(engine.scenario)}`} scenario={engine.scenario} load={load} />
       <p className="integrated-hint">Changing a policy starts a fresh run of the same workload. Next event processes exactly one queued event; several events can share a logical time.</p>
       {snapshot.status === 'limit' && <p role="alert" className="integrated-error">Stopped at the configured event limit ({engine.scenario.eventLimit}). Reset or load a larger limit to replay.</p>}
       {error && <p role="alert" className="integrated-error">{error}</p>}
@@ -80,6 +101,8 @@ export function IntegratedPanel({ active = true }: { active?: boolean }) {
     <section className="integrated-card"><div className="integrated-heading"><h2>Disk service</h2><span className="tag">HEAD {snapshot.disk.head} · {snapshot.disk.active ? `SERVING ${snapshot.disk.active.pid}` : 'IDLE'}</span></div><p className="integrated-hint">Service = max(1, base {engine.scenario.disk.baseService} + seek cost {engine.scenario.disk.seekCost} × head movement + page-in ticks for PAGE_IN). Total scheduled movement: {snapshot.disk.totalMovement} cylinders.</p><div className="table-wrap"><table><thead><tr><th>Request</th><th>Kind</th><th>Process</th><th>Cylinder</th><th>Route</th><th>Enqueued</th><th>Start</th><th>Queue delay</th><th>Service</th><th>Completion</th></tr></thead><tbody>{snapshot.disk.requests.map((request) => <tr key={request.id}><td>R{request.id}</td><td>{request.kind}</td><td>{request.pid}</td><td>{request.cylinder}</td><td>{request.path?.join(" → ") ?? "pending"}</td><td>{request.enqueued}</td><td>{number(request.start)}</td><td>{number(request.start == null ? undefined : request.start - request.enqueued)}</td><td>{number(request.service)}</td><td>{number(request.completion)}</td></tr>)}</tbody></table></div></section>
     <section className="integrated-card"><DiskPathChart scenario={engine.scenario} snapshot={snapshot} /></section>
     <section className="integrated-card"><div className="integrated-heading"><h2>Compare policies</h2><button className="quiet" onClick={() => { engine.pause(); setComparisons(comparePolicies(engine.scenario)) }}>Compare all {policyPairCount} policy pairs</button></div><p className="integrated-hint">Every row starts from a fresh copy of this workload. Quantum {engine.scenario.cpu.quantum}; identical arrivals, bursts, priorities and disk costs; context-switch cost {engine.scenario.cpu.contextSwitchCost ?? 0} ticks.</p>{comparisons.length > 0 && <div className="table-wrap"><table><thead><tr><th>CPU</th><th>Disk</th><th>Status</th><th>Elapsed</th><th>Utilization</th><th>Avg ready wait</th><th>Avg turnaround</th><th>Throughput</th><th>Disk movement</th></tr></thead><tbody>{comparisons.map((row) => <tr key={`${row.cpu}-${row.disk}`}><td>{row.cpu}</td><td>{row.disk}</td><td>{row.status}</td><td>{row.elapsed}</td><td>{number(row.utilization, '%')}</td><td>{number(row.averageWaiting)}</td><td>{number(row.averageTurnaround)}</td><td>{number(row.throughput)}</td><td>{row.diskMovement}</td></tr>)}</tbody></table></div>}</section>
+    <PredictionLesson />
+    <SeededComparison key={`study-${JSON.stringify(engine.scenario)}`} engine={engine} />
     <section className="integrated-card"><div className="integrated-heading"><h2>Decision trace</h2><span>{snapshot.processedEvents} processed · latest {snapshot.retainedEvents} retained</span></div><p className="integrated-hint">At equal times: completions → arrivals → quantum expiry → dispatch. Trace retention is capped at 1,000 entries.</p><ol className="integrated-trace">{[...snapshot.trace].reverse().map((entry) => <li key={entry.sequence}><time>t={entry.time}</time><div><strong>{entry.type.replaceAll('_', ' ')}</strong><p>{entry.message}</p></div><small>#{entry.sequence}</small></li>)}</ol></section>
   </main>
 }

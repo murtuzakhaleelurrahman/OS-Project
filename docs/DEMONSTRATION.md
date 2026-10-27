@@ -8,4 +8,11 @@
 6. **Concurrency:** show the six-operation lost update ending at 1, mutex protection ending at 2, then producer/consumer FIFO wakeups and occupancy limits.
 7. **Resource safety:** display Need, Work and the safe sequence. Request P2's one unit and show rollback. Clarify that unsafe does not mean an existing deadlock.
 8. **Reproducibility and validation:** export JSON/CSV, reload a workload, and show the automated numerical tests and model assumptions.
-9. **Limits and future work:** educational disk costs, separate laboratories, bounded trace retention, no real OS control. Defer demand paging, preemption extensions, TLB, filesystem and deadlock detection.
+9. **Limits and future work:** educational disk costs, separate laboratories, bounded trace retention, no real OS control. Demonstrate the E1 demand-paging and E2 preemption extensions; TLB, filesystem and deadlock detection remain future phases.
+
+## E3 classroom exercises
+
+1. Complete the overlap example, prepare the replay slider, then jump to event zero and return to the final event. Explain why several events may share a logical tick and why event index differs from time.
+2. Try each Predict first lesson before viewing the answer. FCFS serves P1, P2, P3; with one empty frame, cyclic references 0,1,2 fault on all 60 accesses.
+3. Run seed 2026 with 100 workloads and five processes. Explain that all CPU policies receive identical inputs, memory is disabled in this batch experiment, and disk policy/costs remain fixed. Compare mean wait, turnaround and throughput; repeat the seed to reproduce the results.
+4. Save a workload in the browser, change the preset and load the saved one. Create a share link and open it to reproduce the scenario at event zero. Localhost URLs require the same app to run locally; large scenarios can be shared as JSON files.
