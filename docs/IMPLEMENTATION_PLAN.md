@@ -1,6 +1,6 @@
 # Proposal implementation plan
 
-Historical baseline: commit `951e601`, 102 tests. Current suite: 148 tests (including the review follow-up). The phase counts below describe each completed milestone. All paths in this document are repository-relative.
+Historical baseline: commit `951e601`, 102 tests. Current suite: 175 tests (including review follow-up and E1/E2 extensions). The phase counts below describe each completed milestone. All paths in this document are repository-relative.
 The original course proposal (12 October 2026) was supplied separately and is not distributed here. The implemented scope, model contract and acceptance cases are reproduced below and in VALIDATION.md so the repository is self-contained.
 
 Each phase is developed, tested, built and committed locally before the next phase.

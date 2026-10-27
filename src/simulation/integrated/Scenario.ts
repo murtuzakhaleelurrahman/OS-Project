@@ -1,5 +1,6 @@
 import { integer } from '../shared/validation'
-import type { SchedulerAlgorithm } from '../cpu/Scheduler'
+import { integratedCpuPolicies, type IntegratedCpuPolicy } from '../shared/CpuPolicy'
+import { integratedDiskPolicies, type DiskDirection, type IntegratedDiskPolicy } from './DiskPolicy'
 
 export interface CpuBurst {
   readonly kind: 'cpu'
@@ -26,8 +27,15 @@ export interface MemoryConfiguration {
 export interface Scenario {
   readonly schemaVersion: 1
   readonly name: string
-  readonly cpu: { readonly algorithm: SchedulerAlgorithm; readonly quantum: number; readonly contextSwitchCost?: number }
-  readonly disk: { readonly algorithm: 'FCFS' | 'SSTF'; readonly cylinders: number; readonly initialHead: number; readonly baseService: number; readonly seekCost: number }
+  readonly cpu: {
+    readonly algorithm: IntegratedCpuPolicy
+    readonly quantum: number
+    readonly contextSwitchCost?: number
+    readonly agingInterval?: number
+    readonly mlfqQuanta?: readonly number[]
+    readonly boostInterval?: number
+  }
+  readonly disk: { readonly algorithm: IntegratedDiskPolicy; readonly cylinders: number; readonly initialHead: number; readonly baseService: number; readonly seekCost: number; readonly initialDirection?: DiskDirection }
   readonly memory?: MemoryConfiguration
   readonly processes: readonly ScenarioProcess[]
   readonly eventLimit: number
@@ -43,9 +51,16 @@ export function parseScenario(value: unknown): Scenario {
   if (input.schemaVersion !== 1) throw new Error('Unsupported scenario schemaVersion; expected 1')
   if (typeof input.name !== 'string' || !input.name.trim() || input.name.length > 120) throw new Error('Scenario name must contain 1–120 characters')
   const cpu = object(input.cpu, 'CPU configuration')
-  if (!['FCFS', 'SJF', 'PRIORITY', 'ROUND_ROBIN'].includes(String(cpu.algorithm))) throw new Error('Unknown CPU algorithm')
+  if (!integratedCpuPolicies.includes(cpu.algorithm as IntegratedCpuPolicy)) throw new Error('Unknown CPU algorithm')
   const disk = object(input.disk, 'Disk configuration')
-  if (disk.algorithm !== 'FCFS' && disk.algorithm !== 'SSTF') throw new Error('Disk algorithm must be FCFS or SSTF')
+  if (!integratedDiskPolicies.includes(disk.algorithm as IntegratedDiskPolicy)) throw new Error('Unknown integrated disk algorithm')
+  if (disk.initialDirection !== undefined && disk.initialDirection !== 'UP' && disk.initialDirection !== 'DOWN') throw new Error('Disk direction must be UP or DOWN')
+  let mlfqQuanta: number[] | undefined
+  if (cpu.mlfqQuanta !== undefined) {
+    if (!Array.isArray(cpu.mlfqQuanta) || cpu.mlfqQuanta.length < 2 || cpu.mlfqQuanta.length > 8) throw new Error('MLFQ needs 2–8 positive queue quanta')
+    mlfqQuanta = cpu.mlfqQuanta.map((quantum) => integer(quantum, 'MLFQ queue quantum', 1, 10000))
+    if (mlfqQuanta.some((quantum, index) => index > 0 && quantum < mlfqQuanta![index - 1])) throw new Error('MLFQ quanta must be non-decreasing')
+  }
   const cylinders = integer(disk.cylinders, 'Cylinder count', 2)
   let memory: MemoryConfiguration | undefined
   if (input.memory !== undefined) {
@@ -95,12 +110,16 @@ export function parseScenario(value: unknown): Scenario {
   return {
     schemaVersion: 1, name: input.name.trim(),
     cpu: {
-      algorithm: cpu.algorithm as SchedulerAlgorithm, quantum: integer(cpu.quantum, 'Quantum', 1),
+      algorithm: cpu.algorithm as IntegratedCpuPolicy, quantum: integer(cpu.quantum, 'Quantum', 1),
       ...(cpu.contextSwitchCost === undefined ? {} : { contextSwitchCost: integer(cpu.contextSwitchCost, 'Context-switch cost', 0, 1000) }),
+      ...(cpu.agingInterval === undefined ? {} : { agingInterval: integer(cpu.agingInterval, 'Aging interval', 1, 10000) }),
+      ...(mlfqQuanta === undefined ? {} : { mlfqQuanta }),
+      ...(cpu.boostInterval === undefined ? {} : { boostInterval: integer(cpu.boostInterval, 'MLFQ boost interval', 1, 100000) }),
     },
     disk: {
-      algorithm: disk.algorithm, cylinders, initialHead: integer(disk.initialHead, 'Initial disk head', 0, cylinders - 1),
+      algorithm: disk.algorithm as IntegratedDiskPolicy, cylinders, initialHead: integer(disk.initialHead, 'Initial disk head', 0, cylinders - 1),
       baseService: integer(disk.baseService, 'Base service'), seekCost: integer(disk.seekCost, 'Seek cost'),
+      ...(disk.initialDirection === undefined ? {} : { initialDirection: disk.initialDirection as DiskDirection }),
     },
     ...(memory ? { memory } : {}),
     processes, eventLimit: integer(input.eventLimit ?? 20_000, 'Event limit', 1, 100_000),
@@ -140,4 +159,34 @@ export const admissionPreset: Scenario = {
     { id: 'P1', arrival: 0, priority: 1, memoryPages: 3, bursts: [{ kind: 'cpu', duration: 4 }] },
     { id: 'P2', arrival: 0, priority: 1, memoryPages: 2, bursts: [{ kind: 'cpu', duration: 2 }] },
   ],
+}
+
+export const preemptionPreset: Scenario = {
+  ...cpuPreset, name: 'SRTF arrival preemption', cpu: { algorithm: 'SRTF', quantum: 2 },
+  processes: [
+    { id: 'P1', arrival: 0, priority: 5, bursts: [{ kind: 'cpu', duration: 8 }] },
+    { id: 'P2', arrival: 2, priority: 1, bursts: [{ kind: 'cpu', duration: 2 }] },
+  ],
+}
+export const agingPreset: Scenario = {
+  ...cpuPreset, name: 'Priority aging prevents starvation', cpu: { algorithm: 'AGING', quantum: 2, agingInterval: 2 },
+  processes: [
+    { id: 'P1', arrival: 0, priority: 1, bursts: [{ kind: 'cpu', duration: 20 }] },
+    { id: 'P2', arrival: 0, priority: 3, bursts: [{ kind: 'cpu', duration: 1 }] },
+  ],
+}
+export const mlfqPreset: Scenario = {
+  ...cpuPreset, name: 'MLFQ interactive arrival', cpu: { algorithm: 'MLFQ', quantum: 2, mlfqQuanta: [1, 2, 4], boostInterval: 20 },
+  processes: [
+    { id: 'P1', arrival: 0, priority: 0, bursts: [{ kind: 'cpu', duration: 10 }] },
+    { id: 'P2', arrival: 2, priority: 0, bursts: [{ kind: 'cpu', duration: 1 }] },
+  ],
+}
+export const sweepPreset: Scenario = {
+  ...diskPreset, name: 'Disk sweep and wrap paths',
+  disk: { ...diskPreset.disk, algorithm: 'SCAN', initialHead: 50, initialDirection: 'UP' },
+  processes: [80, 10, 20, 120].map((cylinder, index) => ({
+    id: `P${index + 1}`, arrival: 0, priority: index,
+    bursts: [{ kind: 'cpu', duration: 1 }, { kind: 'io', cylinder }, { kind: 'cpu', duration: 1 }],
+  })),
 }

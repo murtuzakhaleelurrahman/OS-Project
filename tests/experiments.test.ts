@@ -7,7 +7,7 @@ describe('reproducible experiments and exports', () => {
   it('compares all policy pairs from the identical untouched workload', () => {
     const input = structuredClone(diskPreset)
     const results = comparePolicies(input)
-    expect(results).toHaveLength(8)
+    expect(results).toHaveLength(48)
     expect(input).toEqual(diskPreset)
     expect(results.every((row) => row.status === 'complete')).toBe(true)
     expect(results.find((row) => row.cpu === 'FCFS' && row.disk === 'SSTF')!.diskMovement).toBeLessThan(results.find((row) => row.cpu === 'FCFS' && row.disk === 'FCFS')!.diskMovement)

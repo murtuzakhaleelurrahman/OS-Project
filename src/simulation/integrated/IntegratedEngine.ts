@@ -1,6 +1,8 @@
-import { EventQueue, Phase } from './EventQueue'
+import { EventQueue, Phase, type ScheduledEvent } from './EventQueue'
 import { IntegratedMemory } from './IntegratedMemory'
 import { parseScenario, type Scenario, type ScenarioProcess } from './Scenario'
+import { compareCpuCandidates, effectivePriority, type CpuCandidate } from '../shared/CpuPolicy'
+import { chooseDiskRequest, type DiskDirection } from './DiskPolicy'
 
 export type RuntimeState = 'NEW' | 'JOB' | 'READY' | 'RUNNING' | 'BLOCKED' | 'TERMINATED'
 export type BlockedReason = 'IO' | 'PAGE_FAULT'
@@ -14,6 +16,9 @@ export interface RuntimeProcess extends ScenarioProcess {
   blocked: number
   jobWait: number
   stateSince: number
+  level: number
+  levelUsed: number
+  dispatchPriority: number
   blockedReason?: BlockedReason
   admitted?: number
   firstStart?: number
@@ -29,7 +34,7 @@ export interface TraceEntry {
 }
 export interface Segment { readonly pid: string; readonly start: number; readonly end: number }
 export interface StateSegment extends Segment { readonly state: RuntimeState; readonly reason?: BlockedReason }
-type ActionKind = 'ARRIVAL' | 'CPU_COMPLETE' | 'CPU_STEP' | 'PAGE_CHECK' | 'DISK_COMPLETE' | 'QUANTUM' | 'SWITCH_COMPLETE' | 'DISPATCH'
+type ActionKind = 'ARRIVAL' | 'CPU_COMPLETE' | 'CPU_STEP' | 'PAGE_CHECK' | 'DISK_COMPLETE' | 'QUANTUM' | 'SWITCH_COMPLETE' | 'POLICY_REVIEW' | 'DISPATCH'
 interface Action { kind: ActionKind; pid?: string; token?: number }
 export interface IntegratedDiskRequest {
   readonly id: number
@@ -39,6 +44,7 @@ export interface IntegratedDiskRequest {
   readonly enqueued: number
   readonly page?: number
   readonly frame?: number
+  path?: number[]
   start?: number
   completion?: number
   service?: number
@@ -68,6 +74,7 @@ export interface IntegratedSnapshot {
   readonly memory?: ReturnType<IntegratedMemory['snapshot']>
   readonly disk: {
     readonly head: number
+    readonly direction: DiskDirection
     readonly active?: IntegratedDiskRequest
     readonly requests: readonly IntegratedDiskRequest[]
     readonly totalMovement: number
@@ -89,6 +96,8 @@ export class IntegratedEngine {
   private readySequence = 0
   private cpuToken = 0
   private usedQuantum = 0
+  private cpuEvent: ScheduledEvent<Action> | undefined
+  private reviewEvent: ScheduledEvent<Action> | undefined
   private busy = 0
   private overhead = 0
   private switches = 0
@@ -101,6 +110,7 @@ export class IntegratedEngine {
   private readonly listeners = new Set<() => void>()
   private cached: IntegratedSnapshot | undefined
   private head = 0
+  private direction: DiskDirection = 'UP'
   private diskRequests: IntegratedDiskRequest[] = []
   private activeDisk: IntegratedDiskRequest | undefined
   private memory: IntegratedMemory | undefined
@@ -113,11 +123,13 @@ export class IntegratedEngine {
 
   private initialize(): void {
     this.head = this.scenario.disk.initialHead
+    this.direction = this.scenario.disk.initialDirection ?? 'UP'
     this.memory = this.scenario.memory ? new IntegratedMemory(this.scenario.memory) : undefined
     this.processes = this.scenario.processes.map((process) => ({
       ...structuredClone(process), state: 'NEW', burstIndex: 0,
       remaining: process.bursts[0].kind === 'cpu' ? process.bursts[0].duration : 0,
       readySince: 0, readySequence: 0, waiting: 0, blocked: 0, jobWait: 0, stateSince: 0,
+      level: 0, levelUsed: 0, dispatchPriority: process.priority,
     }))
     for (const process of this.processes) {
       this.queue.schedule(process.arrival, Phase.ARRIVAL, { kind: 'ARRIVAL', pid: process.id })
@@ -160,7 +172,7 @@ export class IntegratedEngine {
       throughput: this.time === 0 ? null : this.processes.filter((process) => process.state === 'TERMINATED').length / this.time,
       memory: this.memory?.snapshot(),
       disk: {
-        head: this.head, active: this.activeDisk ? { ...this.activeDisk } : undefined,
+        head: this.head, direction: this.direction, active: this.activeDisk ? { ...this.activeDisk } : undefined,
         requests: structuredClone(this.diskRequests),
         totalMovement: this.diskRequests.reduce((total, request) => total + (request.movement ?? 0), 0),
       },
@@ -172,6 +184,8 @@ export class IntegratedEngine {
     if (this.processed >= this.scenario.eventLimit) { this.pause(); return false }
     const event = this.queue.pop()
     if (!event) { this.pause(); return false }
+    if (event === this.cpuEvent) this.cpuEvent = undefined
+    if (event === this.reviewEvent) this.reviewEvent = undefined
     this.advanceTo(event.time)
     this.processed++
     const action = event.payload
@@ -195,7 +209,15 @@ export class IntegratedEngine {
       this.segments.push({ pid: 'SWITCH', start: this.switchStart, end: this.time })
       this.switchingTo = undefined
       this.startCpu(process)
+      if (this.shouldPreempt()) this.requestDispatch()
       message = `Context switch completed; ${process.id} starts CPU service.`
+    } else if (action.kind === 'POLICY_REVIEW') {
+      if (this.scenario.cpu.algorithm === 'MLFQ') {
+        for (const candidate of this.processes) { candidate.level = 0; candidate.levelUsed = 0 }
+        if (this.runner) this.preemptRunner()
+        message = 'MLFQ priority boost: all active queues return to level 0; a running actor rejoins the ready tail.'
+      } else message = 'Aging boundary: reevaluate effective READY priorities; running priority remains fixed until its next dispatch.'
+      this.requestDispatch()
     } else if (action.kind === 'DISPATCH') {
       this.dispatchAt = undefined
       message = this.dispatchCpu()
@@ -205,7 +227,7 @@ export class IntegratedEngine {
       else if (action.kind === 'CPU_COMPLETE') message = this.finishBurst(process)
       else if (action.kind === 'CPU_STEP') {
         if (process.remaining === 0) message = this.finishBurst(process)
-        else if (this.scenario.cpu.algorithm === 'ROUND_ROBIN' && this.usedQuantum >= this.scenario.cpu.quantum) {
+        else if (this.quantumExpired(process)) {
           this.scheduleCpu('QUANTUM', this.time, Phase.QUANTUM, process.id)
           message = `${process.id} completed one productive tick; quantum boundary reached.`
         } else {
@@ -214,12 +236,19 @@ export class IntegratedEngine {
         }
       } else if (action.kind === 'QUANTUM') {
         this.releaseCpu(process)
+        if (this.scenario.cpu.algorithm === 'MLFQ') {
+          process.level = Math.min(process.level + 1, this.mlfqQuanta().length - 1)
+          process.levelUsed = 0
+        }
         this.makeReady(process)
         this.requestDispatch()
-        message = `${process.id} used quantum ${this.scenario.cpu.quantum}; returned to the tail of the ready queue.`
+        message = this.scenario.cpu.algorithm === 'MLFQ'
+          ? `${process.id} exhausted its queue budget; returned to FIFO queue level ${process.level}.`
+          : `${process.id} used quantum ${this.scenario.cpu.quantum}; returned to the tail of the ready queue.`
       }
     }
 
+    this.refreshPolicyReview()
     this.trace.push({
       sequence: this.processed, time: this.time, phase: event.phase, type: action.kind,
       pid: action.pid ?? (action.kind === 'DISPATCH' ? this.runner : undefined), message,
@@ -240,6 +269,7 @@ export class IntegratedEngine {
         process.remaining -= elapsed
         this.busy += elapsed
         this.usedQuantum += elapsed
+        process.levelUsed += elapsed
       }
     }
     if (this.switchingTo) this.overhead += elapsed
@@ -271,7 +301,9 @@ export class IntegratedEngine {
 
   private dispatchCpu(): string {
     if (this.switchingTo) return `CPU switching to ${this.switchingTo}.`
-    if (this.runner) return `${this.runner} keeps the CPU under the non-preemptive dispatch rule.`
+    let preemption = ''
+    if (this.runner && this.shouldPreempt()) preemption = this.preemptRunner(false)
+    if (this.runner) return `${this.runner} keeps the CPU; no strictly better eligible candidate.`
     const selected = this.select()
     if (!selected) return 'No READY process; CPU remains idle until the next eligible event.'
     this.recordIdleGap()
@@ -282,10 +314,10 @@ export class IntegratedEngine {
       this.switchingTo = selected.id
       this.switchStart = this.time
       this.queue.schedule(this.time + cost, Phase.COMPLETION, { kind: 'SWITCH_COMPLETE', pid: selected.id })
-      return `Switching from ${this.previousPid} to ${selected.id}; ${cost} overhead ticks. Selected target remains READY until completion.`
+      return preemption + `Switching from ${this.previousPid} to ${selected.id}; ${cost} overhead ticks. Selected target remains READY until completion.`
     }
     this.startCpu(selected)
-    return `${this.scenario.cpu.algorithm} selected ${selected.id}; CPU service starts at ${this.time}.`
+    return preemption + `${this.scenario.cpu.algorithm} selected ${selected.id}; CPU service starts at ${this.time}.`
   }
 
   private startCpu(process: RuntimeProcess): void {
@@ -294,18 +326,23 @@ export class IntegratedEngine {
     this.runner = process.id
     this.segmentStart = this.time
     this.usedQuantum = 0
+    process.dispatchPriority = this.scenario.cpu.algorithm === 'AGING'
+      ? effectivePriority(this.candidate(process), this.time, this.scenario.cpu.agingInterval ?? 5)
+      : process.priority
     this.cpuToken++
     if (this.memory?.configuration.mode === 'demand') {
       this.scheduleCpu('PAGE_CHECK', this.time, Phase.DISPATCH, process.id)
     } else {
-      const duration = this.scenario.cpu.algorithm === 'ROUND_ROBIN'
-        ? Math.min(this.scenario.cpu.quantum, process.remaining) : process.remaining
+      const duration = Math.min(this.availableQuantum(process), process.remaining)
       const kind = duration === process.remaining ? 'CPU_COMPLETE' : 'QUANTUM'
       this.scheduleCpu(kind, this.time + duration, kind === 'CPU_COMPLETE' ? Phase.COMPLETION : Phase.QUANTUM, process.id)
     }
   }
 
   private checkPage(process: RuntimeProcess): string {
+    // A same-time arrival/completion may precede the queued page check.
+    // Decide preemption before counting a reference that has not executed yet.
+    if (this.shouldPreempt()) return this.preemptRunner()
     const burst = process.bursts[process.burstIndex]
     if (burst.kind !== 'cpu' || !this.memory) throw new Error('Memory access requires a CPU burst and memory')
     const index = burst.duration - process.remaining
@@ -326,6 +363,8 @@ export class IntegratedEngine {
   }
 
   private releaseCpu(process: RuntimeProcess): void {
+    if (this.cpuEvent) this.queue.cancel(this.cpuEvent)
+    this.cpuEvent = undefined
     if (this.time > this.segmentStart) this.segments.push({ pid: process.id, start: this.segmentStart, end: this.time })
     this.runner = undefined
     this.previousPid = process.id
@@ -338,6 +377,7 @@ export class IntegratedEngine {
     const io = process.bursts[process.burstIndex + 1]
     let message: string
     if (io?.kind === 'io') {
+      process.levelUsed = 0
       process.burstIndex++
       this.setState(process, 'BLOCKED', 'IO')
       this.diskRequests.push({ id: this.diskRequests.length + 1, pid: process.id, kind: 'IO', cylinder: io.cylinder, enqueued: this.time })
@@ -359,17 +399,19 @@ export class IntegratedEngine {
   private dispatchDisk(): string {
     if (this.activeDisk) return ''
     const pending = this.diskRequests.filter((request) => request.start === undefined)
-    pending.sort((a, b) => (this.scenario.disk.algorithm === 'SSTF'
-      ? Math.abs(a.cylinder - this.head) - Math.abs(b.cylinder - this.head) : 0) || a.id - b.id)
-    const request = pending[0]
-    if (!request) return ''
+    const selection = chooseDiskRequest(pending, this.head, this.direction,
+      this.scenario.disk.algorithm, this.scenario.disk.cylinders)
+    if (!selection) return ''
+    const request = selection.request
+    this.direction = selection.direction
     request.start = this.time
-    request.movement = Math.abs(request.cylinder - this.head)
+    request.path = selection.path
+    request.movement = selection.distance
     const pageIn = request.kind === 'PAGE_IN' ? this.memory!.configuration.pageInTicks : 0
     request.service = Math.max(1, this.scenario.disk.baseService + this.scenario.disk.seekCost * request.movement + pageIn)
     this.activeDisk = request
     this.queue.schedule(this.time + request.service, Phase.COMPLETION, { kind: 'DISK_COMPLETE', pid: request.pid, token: request.id })
-    return ` Disk ${this.scenario.disk.algorithm} selected ${request.pid} ${request.kind}: movement ${request.movement}, service ${request.service}, completes at ${this.time + request.service}.`
+    return ` Disk ${this.scenario.disk.algorithm} selected ${request.pid} ${request.kind}: path ${[this.head, ...selection.path].join(' → ')}, movement ${request.movement}, service ${request.service}, completes at ${this.time + request.service}.`
   }
 
   private completeDisk(process: RuntimeProcess): string {
@@ -394,7 +436,7 @@ export class IntegratedEngine {
   }
 
   private scheduleCpu(kind: ActionKind, time: number, phase: 0 | 1 | 2 | 3, pid: string): void {
-    this.queue.schedule(time, phase, { kind, pid, token: this.cpuToken })
+    this.cpuEvent = this.queue.schedule(time, phase, { kind, pid, token: this.cpuToken })
   }
 
   private recordIdleGap(): void {
@@ -410,10 +452,70 @@ export class IntegratedEngine {
 
   private select(): RuntimeProcess | undefined {
     const ready = this.readyProcesses()
-    const ties = (a: RuntimeProcess, b: RuntimeProcess) => a.readySince - b.readySince || a.id.localeCompare(b.id, undefined, { numeric: true })
-    if (this.scenario.cpu.algorithm === 'SJF') ready.sort((a, b) => a.remaining - b.remaining || ties(a, b))
-    if (this.scenario.cpu.algorithm === 'PRIORITY') ready.sort((a, b) => a.priority - b.priority || ties(a, b))
+    ready.sort((a, b) => compareCpuCandidates(this.candidate(a), this.candidate(b),
+      this.scenario.cpu.algorithm, this.time, this.scenario.cpu.agingInterval ?? 5))
     return ready[0]
+  }
+
+  private candidate(process: RuntimeProcess): CpuCandidate {
+    return {
+      id: process.id, readySince: process.readySince, order: process.readySequence,
+      work: process.remaining, priority: process.priority, level: process.level,
+    }
+  }
+
+  private shouldPreempt(): boolean {
+    const running = this.processes.find((process) => process.id === this.runner)
+    const selected = this.select()
+    if (!running || !selected) return false
+    const policy = this.scenario.cpu.algorithm
+    if (policy === 'SRTF') return selected.remaining < running.remaining
+    if (policy === 'PREEMPTIVE_PRIORITY') return selected.priority < running.priority
+    if (policy === 'AGING') return effectivePriority(this.candidate(selected), this.time,
+      this.scenario.cpu.agingInterval ?? 5) < running.dispatchPriority
+    if (policy === 'MLFQ') return selected.level < running.level
+    return false
+  }
+
+  private preemptRunner(reschedule = true): string {
+    const process = this.processes.find((candidate) => candidate.id === this.runner)!
+    this.releaseCpu(process)
+    this.makeReady(process)
+    if (reschedule) this.requestDispatch()
+    return `${process.id} preempted; obsolete CPU event cancelled; remaining burst ${process.remaining}. `
+  }
+
+  private mlfqQuanta(): readonly number[] { return this.scenario.cpu.mlfqQuanta ?? [1, 2, 4] }
+
+  private availableQuantum(process: RuntimeProcess): number {
+    if (this.scenario.cpu.algorithm === 'ROUND_ROBIN') return this.scenario.cpu.quantum
+    if (this.scenario.cpu.algorithm === 'MLFQ') return this.mlfqQuanta()[process.level] - process.levelUsed
+    return Infinity
+  }
+
+  private quantumExpired(process: RuntimeProcess): boolean {
+    return this.scenario.cpu.algorithm === 'ROUND_ROBIN' ? this.usedQuantum >= this.scenario.cpu.quantum
+      : this.scenario.cpu.algorithm === 'MLFQ' && process.levelUsed >= this.mlfqQuanta()[process.level]
+  }
+
+  private refreshPolicyReview(): void {
+    const policy = this.scenario.cpu.algorithm
+    const ready = this.processes.filter((process) => process.state === 'READY' && process.id !== this.switchingTo)
+    const needed = (policy === 'AGING' || policy === 'MLFQ') && ready.length > 0 && !!(this.runner || this.switchingTo)
+    if (!needed) {
+      if (this.reviewEvent) this.queue.cancel(this.reviewEvent)
+      this.reviewEvent = undefined
+      return
+    }
+    let nextTime: number
+    if (policy === 'AGING') {
+      const interval = this.scenario.cpu.agingInterval ?? 5
+      nextTime = Math.min(...ready.map((process) => process.readySince
+        + (Math.floor((this.time - process.readySince) / interval) + 1) * interval))
+    } else nextTime = this.reviewEvent?.time ?? this.time + (this.scenario.cpu.boostInterval ?? 20)
+    if (this.reviewEvent?.time === nextTime) return
+    if (this.reviewEvent) this.queue.cancel(this.reviewEvent)
+    this.reviewEvent = this.queue.schedule(nextTime, Phase.DISPATCH, { kind: 'POLICY_REVIEW' })
   }
 
   private makeReady(process: RuntimeProcess): void {
@@ -439,6 +541,8 @@ export class IntegratedEngine {
   reset(): void {
     this.stopTimer()
     this.queue.clear()
+    this.cpuEvent = undefined
+    this.reviewEvent = undefined
     this.cpuToken++
     this.time = 0
     this.runner = undefined

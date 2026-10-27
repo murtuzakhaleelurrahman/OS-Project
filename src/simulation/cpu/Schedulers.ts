@@ -1,24 +1,33 @@
 import type { Process } from '../process/Process'
-import { SchedulerAlgorithm, type Scheduler, compareArrivalAndPid } from './Scheduler'
+import { SchedulerAlgorithm, type Scheduler } from './Scheduler'
+import { compareCpuCandidates, type IntegratedCpuPolicy } from '../shared/CpuPolicy'
+
+function compareLegacy(left: Process, right: Process, policy: IntegratedCpuPolicy): number {
+  const candidate = (process: Process) => ({
+    id: process.pid, readySince: process.arrivalTime, order: 0,
+    work: process.burstTime, priority: process.priority, level: 0,
+  })
+  return compareCpuCandidates(candidate(left), candidate(right), policy)
+}
 
 export class FcfsScheduler implements Scheduler {
   readonly algorithm = SchedulerAlgorithm.FCFS
   selectNextProcess(processes: readonly Process[]): Process | undefined {
-    return [...processes].sort(compareArrivalAndPid)[0]
+    return [...processes].sort((left, right) => compareLegacy(left, right, 'FCFS'))[0]
   }
 }
 
 export class SjfScheduler implements Scheduler {
   readonly algorithm = SchedulerAlgorithm.SJF
   selectNextProcess(processes: readonly Process[]): Process | undefined {
-    return [...processes].sort((left, right) => left.burstTime - right.burstTime || compareArrivalAndPid(left, right))[0]
+    return [...processes].sort((left, right) => compareLegacy(left, right, 'SJF'))[0]
   }
 }
 
 export class PriorityScheduler implements Scheduler {
   readonly algorithm = SchedulerAlgorithm.PRIORITY
   selectNextProcess(processes: readonly Process[]): Process | undefined {
-    return [...processes].sort((left, right) => left.priority - right.priority || compareArrivalAndPid(left, right))[0]
+    return [...processes].sort((left, right) => compareLegacy(left, right, 'PRIORITY'))[0]
   }
 }
 

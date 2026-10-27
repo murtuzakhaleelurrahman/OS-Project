@@ -1,5 +1,9 @@
 import { IntegratedEngine, type IntegratedSnapshot } from './IntegratedEngine'
 import { parseScenario, type Scenario } from './Scenario'
+import { integratedCpuPolicies } from '../shared/CpuPolicy'
+import { integratedDiskPolicies } from './DiskPolicy'
+
+export const policyPairCount = integratedCpuPolicies.length * integratedDiskPolicies.length
 
 export const modelAssumptions = {
   model: 'Single CPU, single disk; educational simulation', units: 'integer logical ticks; disk movement in cylinders',
@@ -7,7 +11,7 @@ export const modelAssumptions = {
   cpuTies: 'ready-entry time then natural process ID; Round Robin uses FIFO ready entry',
   priority: 'lower number is higher priority', sjf: 'non-preemptive, next known CPU burst',
   diskTies: 'enqueue sequence; active service is never preempted',
-  diskService: 'max(1, baseService + seekCost * absolute head movement)',
+  diskService: 'max(1, baseService + seekCost * full route distance + optional page-in ticks); sweep/wrap legs count',
   metricHorizon: 'time 0 to final completion; incomplete results explicitly labelled',
   traceRetention: 1000,
 } as const
@@ -20,8 +24,8 @@ export interface ComparisonRow {
 export function comparePolicies(input: unknown): ComparisonRow[] {
   const scenario = parseScenario(input)
   const rows: ComparisonRow[] = []
-  for (const cpu of ['FCFS', 'SJF', 'PRIORITY', 'ROUND_ROBIN'] as const) {
-    for (const disk of ['FCFS', 'SSTF'] as const) {
+  for (const cpu of integratedCpuPolicies) {
+    for (const disk of integratedDiskPolicies) {
       const engine = new IntegratedEngine({ ...structuredClone(scenario), cpu: { ...scenario.cpu, algorithm: cpu }, disk: { ...scenario.disk, algorithm: disk } })
       engine.runAll()
       const result = engine.getSnapshot()
@@ -38,6 +42,10 @@ export function comparePolicies(input: unknown): ComparisonRow[] {
 export function resultBundle(scenario: Scenario, result: IntegratedSnapshot) {
   const assumptions = {
     ...modelAssumptions, contextSwitchCost: scenario.cpu.contextSwitchCost ?? 0,
+    agingInterval: scenario.cpu.agingInterval ?? 5,
+    mlfqQuanta: scenario.cpu.mlfqQuanta ?? [1, 2, 4],
+    boostInterval: scenario.cpu.boostInterval ?? 20,
+    diskInitialDirection: scenario.disk.initialDirection ?? 'UP',
     memory: scenario.memory ? { ...scenario.memory, scope: 'local replacement', pages: 'clean, read-only', faultRetry: 'same reference retried; no duplicate count' } : 'disabled',
   }
   return { schemaVersion: 1, kind: 'mini-os-result', scenario: structuredClone(scenario), assumptions, traceTruncated: result.processedEvents > result.retainedEvents, result: structuredClone(result) }
@@ -53,8 +61,8 @@ function csvCell(value: unknown): string {
   return '"' + text.replaceAll('"', '""') + '"'
 }
 function csv(rows: unknown[][]): string { return rows.map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n' }
-const metadataHeaders = ['schema_version', 'scenario', 'cpu_policy', 'quantum', 'disk_policy', 'base_service', 'seek_cost', 'context_switch_cost', 'units', 'phase_order', 'cpu_ties', 'disk_ties', 'priority_rule', 'metric_horizon', 'memory_mode', 'physical_frames', 'replacement', 'page_in_ticks']
-function metadata(scenario: Scenario): unknown[] { return [1, scenario.name, scenario.cpu.algorithm, scenario.cpu.quantum, scenario.disk.algorithm, scenario.disk.baseService, scenario.disk.seekCost, scenario.cpu.contextSwitchCost ?? 0, modelAssumptions.units, modelAssumptions.phases.join(' > '), modelAssumptions.cpuTies, modelAssumptions.diskTies, modelAssumptions.priority, modelAssumptions.metricHorizon, scenario.memory?.mode ?? 'disabled', scenario.memory?.frames, scenario.memory?.replacement, scenario.memory?.pageInTicks] }
+const metadataHeaders = ['schema_version', 'scenario', 'cpu_policy', 'quantum', 'disk_policy', 'base_service', 'seek_cost', 'context_switch_cost', 'units', 'phase_order', 'cpu_ties', 'disk_ties', 'priority_rule', 'metric_horizon', 'memory_mode', 'physical_frames', 'replacement', 'page_in_ticks', 'aging_interval', 'mlfq_quanta', 'boost_interval', 'disk_initial_direction']
+function metadata(scenario: Scenario): unknown[] { return [1, scenario.name, scenario.cpu.algorithm, scenario.cpu.quantum, scenario.disk.algorithm, scenario.disk.baseService, scenario.disk.seekCost, scenario.cpu.contextSwitchCost ?? 0, modelAssumptions.units, modelAssumptions.phases.join(' > '), modelAssumptions.cpuTies, modelAssumptions.diskTies, modelAssumptions.priority, modelAssumptions.metricHorizon, scenario.memory?.mode ?? 'disabled', scenario.memory?.frames, scenario.memory?.replacement, scenario.memory?.pageInTicks, scenario.cpu.agingInterval ?? 5, (scenario.cpu.mlfqQuanta ?? [1, 2, 4]).join(' '), scenario.cpu.boostInterval ?? 20, scenario.disk.initialDirection ?? 'UP'] }
 export function traceCsv(scenario: Scenario, result: IntegratedSnapshot): string {
   return csv([[...metadataHeaders, 'status', 'processed_events', 'trace_truncated', 'sequence', 'time', 'phase', 'type', 'process', 'explanation'], ...result.trace.map((event) => [...metadata(scenario), result.status, result.processedEvents, result.processedEvents > result.retainedEvents, event.sequence, event.time, event.phase, event.type, event.pid ?? '', event.message])])
 }

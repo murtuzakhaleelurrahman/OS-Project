@@ -5,7 +5,7 @@ Requested on 27 October 2026. Baseline: `5eb7f7c`, 148 passing tests and green U
 | Phase | Deliverables | Acceptance | Status |
 | --- | --- | --- | --- |
 | E1 | Integrated demand paging, FIFO/LRU, memory admission/job queue, termination cleanup, context-switch costs, thrashing comparison | Fault blocks/retries through the shared disk; no fabricated hits; freed frames admit jobs; conservation includes job wait and switch overhead; fewer frames visibly increase faults and lower productive utilization | Complete: 158 tests, build/lint, browser thrashing/admission checks |
-| E2 | SRTF, preemptive Priority, aging, MLFQ; integrated SCAN/C-SCAN/LOOK; head path | Boundary/tie/preemption oracles; shared scheduling policy helpers where models agree; movement and service costs agree | Planned |
+| E2 | SRTF, preemptive Priority, aging, MLFQ; integrated SCAN/C-SCAN/LOOK; head path | Boundary/tie/preemption oracles; shared scheduling policy helpers where models agree; movement and service costs agree | Complete: 175 tests, build/lint, browser CPU/sweep checks |
 | E3 | Event-index time travel, predict-first lessons, seeded generators and batch comparisons, extra timeline/chart lanes, localStorage/URL sharing | Replay prefix equals original; reproducible seeds; identical input sets; validated sharing; clearly separate prediction and actual results | Planned |
 | E4 | Property-based invariants with fast-check, coverage, Playwright navigation smoke suite, GitHub Pages deployment | Real tests/build/lint remain green; property tests cover enabled extensions; browser smoke passes; deployment URL verified | Planned |
 | E5 | Wait-for graph detection and dining philosophers, TLB/EMAT lab | Detection explicitly restricted to single-instance resources; deadlocking/fixed philosophers; serial EMAT oracle and cache invalidation | Planned |
@@ -23,3 +23,15 @@ Context-switch cost applies to a direct change between different processes, incl
 ## Delivery discipline
 
 Implement, test, document and locally commit each phase before beginning the next. Preserve the proposal's original example exports and opt-out behavior. Never label optional work complete until its model, controls and acceptance tests exist. Public hosting uses the existing public repository; no secret scenario data is included in share links automatically.
+
+## E2 policy semantics
+
+SRTF and preemptive Priority switch only for a strictly better remaining burst or lower priority number; equal candidates retain the runner. Completion and quantum-boundary ordering remain unchanged. Cancelled CPU events are removed, rather than retained as future no-op events. A better arrival during a committed switch is reconsidered when that switch finishes.
+
+Aging is preemptive priority with `effective = base - floor(current READY wait / agingInterval)`. Effective values may be negative. The runner's effective priority is frozen at dispatch, and a new ready wait begins after preemption. Reviews occur at exact aging boundaries while contention exists. Default interval: 5 ticks.
+
+MLFQ defaults to FIFO queues with quanta [1,2,4] and a 20-tick boost interval. New jobs enter level 0. Full budget consumption demotes; higher queues preempt; partial budgets survive such preemption and page faults. Ordinary I/O resets the current-level budget without promotion. Under contention, boost events promote every process to level 0, reset budgets, and requeue the runner at the tail. Review timers are cancelled when there is no competing ready work, so they cannot extend the completed horizon.
+
+Integrated SCAN and C-SCAN traverse configured endpoints when changing sweep/wrapping; LOOK and C-LOOK turn/jump at the pending request extremes. Every path leg, including wrap travel, counts toward distance and service duration. Selection reserves one entire request route and is non-preemptive. The completed head-path chart uses waypoint index rather than pretending intermediate points have measured timestamps. Initial direction defaults to UP. A run stops at its final request, without unnecessary post-completion travel.
+
+FCFS/SJF/Priority comparisons are shared with the legacy tools through CpuPolicy.ts adapters. The adapters retain different definitions of work/ready time because the manual tool has a single burst and the integrated model has CPU/I/O scripts. All eight CPU and six disk policies are compared from fresh workloads (48 combinations).

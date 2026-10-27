@@ -1,7 +1,7 @@
-import { admissionPreset, cpuPreset, diskPreset, ioPreset, parseScenario, thrashingPreset, type Scenario } from './Scenario'
+import { admissionPreset, agingPreset, cpuPreset, diskPreset, ioPreset, mlfqPreset, parseScenario, preemptionPreset, sweepPreset, thrashingPreset, type Scenario } from './Scenario'
 
-export type PresetId = 'io' | 'cpu' | 'disk' | 'thrashing' | 'admission' | 'custom'
-const presets = { io: ioPreset, cpu: cpuPreset, disk: diskPreset, thrashing: thrashingPreset, admission: admissionPreset } as const
+export type PresetId = 'io' | 'cpu' | 'disk' | 'thrashing' | 'admission' | 'preemption' | 'aging' | 'mlfq' | 'sweep' | 'custom'
+const presets = { io: ioPreset, cpu: cpuPreset, disk: diskPreset, thrashing: thrashingPreset, admission: admissionPreset, preemption: preemptionPreset, aging: agingPreset, mlfq: mlfqPreset, sweep: sweepPreset } as const
 export const presetCatalog = Object.entries(presets).map(([id, scenario]) => ({ id, scenario }))
 
 /** Match the workload and device costs; policies are independent experiment settings. */

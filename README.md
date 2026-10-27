@@ -23,14 +23,14 @@ Open the local URL printed in the terminal. For a production preview, run `npm r
 
 ## What is implemented
 
-- Integrated CPU scheduling: FCFS, non-preemptive SJF, non-preemptive Priority, Round Robin.
-- Alternating CPU/I/O scripts, single-disk FCFS/SSTF, process blocking and resumption, ready/blocked-time accounting, and CPU Gantt chart.
+- Integrated CPU scheduling: FCFS, non-preemptive SJF/Priority, Round Robin, SRTF, preemptive Priority, aging and MLFQ.
+- Alternating CPU/I/O scripts, single-disk FCFS/SSTF/SCAN/C-SCAN/LOOK/C-LOOK, process blocking and resumption, ready/blocked-time accounting, and CPU Gantt chart.
 - Stable event ordering: timestamp, completion/arrival/quantum/dispatch phase, insertion sequence. Logical time jumps to the next event. Play and next-event use identical handlers.
 - First/Best/Worst Fit allocation, freeing and hole coalescing; configurable memory/page sizes, address translation, page faults and explicit page remapping.
 - Independent FIFO/LRU/Optimal reference-string experiments with configurable frames and per-access history.
 - Scripted lost-update, mutex-protected increment and bounded-buffer lessons with atomic mutex/semaphore commands and FIFO waiter transfer.
 - Banker safety analysis and tentative requests committed only when safe; unsafe requests roll back.
-- Presets, editable/importable versioned JSON, all eight CPU/disk policy comparisons, result/workload JSON and trace/metric CSV exports.
+- Presets, editable/importable versioned JSON, all 48 CPU/disk policy comparisons, result/workload JSON and trace/metric CSV exports.
 - The earlier manual dashboard is preserved under Memory & algorithms → Additional manual algorithm tools.
 
 ## Suggested demonstration
@@ -46,7 +46,7 @@ Open the local URL printed in the terminal. For a production preview, run `npm r
 
 All integrated durations use integer logical ticks; CPU bursts are positive. Lower numeric priority means higher priority. SJF chooses the shortest next CPU burst. FCFS/SJF/Priority ties use ready-entry time then natural process ID; RR uses FIFO ready entry. Arrivals at a quantum boundary precede requeuing. Burst completion wins over expiry at an exact quantum boundary.
 
-Disk service is `max(1, baseService + seekCost * abs(target - head))`; active service is not preempted. FCFS uses enqueue order; SSTF ties use enqueue order. Context-switch cost defaults to zero; optional `cpu.contextSwitchCost` charges direct switches, with overhead reported separately. Only direct switches between different processes count as context switches; dispatch after an idle gap does not.
+Disk service is `max(1, baseService + seekCost * full route distance)`; active service is not preempted. FCFS uses enqueue order; SSTF ties use enqueue order. Context-switch cost defaults to zero; optional `cpu.contextSwitchCost` charges direct switches, with overhead reported separately. Only direct switches between different processes count as context switches; dispatch after an idle gap does not.
 
 Waiting accumulates only in READY; blocked time only in BLOCKED. Turnaround = completion - arrival, response = first CPU start - arrival. CPU utilization = productive ticks / elapsed ticks; throughput is completed processes per tick. The completed horizon starts at zero and ends at final completion. Undefined ratios display N/A. Memory addresses are bytes; concurrency uses operation steps, independent of integrated ticks.
 
@@ -74,7 +74,7 @@ See [validation](docs/VALIDATION.md), [architecture and limitations](docs/ARCHIT
 
 Integrated scenarios accept at most 100 processes and 101 bursts per process; event execution is bounded by an explicit limit (maximum 100,000). The decision trace retains the latest 1,000 events. Result JSON and CSV indicate truncation; scenario JSON always retains the replayable input. Browser imports are limited to 1 MB. Memory labs accept up to 256 resident frames; reference experiments use 1–32 frames and up to 500 references. Actor scripts are bounded at 1,000 operations.
 
-This is an educational abstraction, not real host OS management. TLB/two-level paging, preemptive priority/SRTF, aging/MLFQ, a general thread scheduler, deadlock detection, filesystem and terminal remain outside the committed core. Unsafe Banker results do not establish an existing deadlock. No cloud hosting or backend is configured.
+This is an educational abstraction, not real host OS management. TLB/two-level paging, a general thread scheduler, deadlock detection, filesystem and terminal remain outside the committed core. Unsafe Banker results do not establish an existing deadlock. No cloud hosting or backend is configured.
 
 ## Continuous integration
 
@@ -91,3 +91,14 @@ An optional `memory` object supplies `mode` (fixed/demand), `frames`, `pageSize`
 `cpu.contextSwitchCost` is optional. Initial dispatch and dispatch after an idle gap are free; direct changes to a different process incur the configured overhead, including faulting zero-work dispatches. The selected target waits in READY during the switch. CPU work, switch overhead and idle time sum to elapsed time. For each completed process, turnaround = productive CPU + READY wait + blocked time + job-queue wait.
 
 The integrated view now includes reserved/resident frames, faults/hits/replacements, job waits and process-state timeline lanes. See [the extension roadmap](docs/EXTENSION_PLAN.md) for E2–E7; planned features are not yet implemented.
+## Expanded scheduling extension (E2)
+
+The integrated model now offers eight CPU policies and six disk policies, with all 48 combinations run from fresh copies of the same input. New presets demonstrate **SRTF arrival preemption**, **Priority aging prevents starvation**, **MLFQ interactive arrival**, and **Disk sweep and wrap paths**.
+
+SRTF and preemptive Priority retain the runner on ties; strictly better candidates preempt and cancel the old CPU event. Aging uses base priority minus floor(current READY wait / `cpu.agingInterval`), defaults to five ticks, and can produce negative effective priorities. The runner keeps its dispatch-time priority until service ends or it is preempted. The aging preset dispatches P2 at tick 6, before the long P1 finishes.
+
+MLFQ defaults to quanta `[1,2,4]`, configurable as `cpu.mlfqQuanta`, with `cpu.boostInterval=20`. Full budget consumption demotes. Higher queues preempt; partial budgets survive preemption and page faults. Ordinary I/O resets the current-level budget without promotion. Under contention, periodic boosts reset all levels/budgets and requeue the runner. Queue level is shown in the process table. The ordinary Quantum field applies to Round Robin; MLFQ uses its queue-quanta field.
+
+Disk `initialDirection` defaults to UP and is selectable for sweep policies. SCAN visits the physical endpoint before reversing; C-SCAN includes endpoint and wrap movement. LOOK/C-LOOK reverse/jump at pending request extremes. All legs count toward movement and service time. Active routes are non-preemptive. The head-path chart displays completed route waypoints, not fabricated intermediate timestamps, and retains the latest 200 points for large runs. Sweep travel stops when the final pending request is serviced.
+
+See `docs/EXTENSION_PLAN.md` for the precise contracts. FCFS/SJF/Priority ranking is now shared by the legacy and integrated models through adapters; their distinct execution clocks remain separate.
