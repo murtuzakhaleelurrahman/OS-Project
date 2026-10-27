@@ -6,7 +6,7 @@ import { SimulationEngine } from '../src/simulation/engine/SimulationEngine'
 
 const configuration: DiskConfiguration = { cylinders: 200, initialHead: 50 }
 const requests = (cylinders: number[]): DiskRequest[] => cylinders.map((cylinder, index) => ({ requestId: `R${index + 1}`, cylinder, arrivalTick: index, status: 'PENDING' }))
-const context = (algorithm: string, direction: 'UP' | 'DOWN' = 'UP', head = 50) => ({ configuration, head, direction, requests: requests([10, 40, 70, 120]) })
+const context = (_algorithmLabel: string, direction: 'UP' | 'DOWN' = 'UP', head = 50) => ({ configuration, head, direction, requests: requests([10, 40, 70, 120]) })
 
 describe('disk scheduling strategies', () => {
   it('selects FCFS and deterministic SSTF ties', () => {

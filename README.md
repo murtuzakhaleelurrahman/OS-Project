@@ -78,7 +78,7 @@ This is an educational abstraction, not real host OS management. TLB/two-level p
 
 ## Continuous integration
 
-The GitHub Actions workflow in `.github/workflows/ci.yml` runs the real npm test, production build and lint commands on Ubuntu, Windows and macOS with Node 22. It runs on pushes, pull requests and manual dispatch. A workflow file is not evidence of a successful hosted run; see the repository Actions tab for actual results.
+The GitHub Actions workflow in `.github/workflows/ci.yml` runs strict test type checks, coverage-enforced tests, production build and lint on Ubuntu, Windows and macOS with Node 22. A separate Chromium job exercises the production build under `/OS-Project/`. Coverage and browser reports are downloadable workflow artifacts retained for 14 days. All checks must pass before a main-branch push or manual run can deploy GitHub Pages; pull requests never deploy. See the repository Actions tab for actual hosted results.
 
 ## Integrated memory extension (E1)
 
@@ -111,3 +111,21 @@ See `docs/EXTENSION_PLAN.md` for the precise contracts. FCFS/SJF/Priority rankin
 - **Save & share:** Save in browser stores one workload locally; Load saved workload restores it. Create share link provides a selectable URL containing the complete scenario, loaded at event zero. Links are limited to 16,000 characters and validated before loading; use JSON export for larger workloads. Localhost links require another local copy of the app; hosting is planned in E4.
 
 Saving and sharing are explicit. Playback, predictions and comparison results are not automatically stored. Existing process-state lanes distinguish I/O blocking from page faults and READY waits, while the disk chart shows physical routes.
+
+## Verification and hosting (E4)
+
+```sh
+npm ci
+npm run test:typecheck
+npm run test:coverage
+npx playwright install chromium
+npm run test:e2e
+npm run build
+npm run lint
+```
+
+`test:coverage` includes the deterministic unit tests and fast-check properties. Each of the 48 policy pairs runs 20 generated workloads with assertions after every event; another 60 cases verify sharing and replay. Generators cover disabled/fixed/demand memory, FIFO/LRU, frame admission, context-switch costs, both sweep directions and CPU/I/O scripts. Seeds are fixed and fast-check prints a shrunk counterexample and replay path if a property fails. These 1,020 generated cases are represented by 49 property tests, not 1,020 separate unit tests.
+
+Coverage measures all `src/simulation/**/*.ts`, including previously unimported files, and excludes React UI. Gates require statements/functions >=90%, branches >=85%, and lines >=95%. Open `coverage/index.html` for the local HTML report; `coverage/lcov.info` is available for other tooling. Chromium tests cover all four modes plus replay, paging, 48-pair comparisons, prediction, seeded-study stop/restart, local saving and URL sharing. Open the browser report with `npm run test:e2e:report`. Generated reports stay out of Git.
+
+`npm run build:pages` builds assets for `/OS-Project/`; `npm run test:e2e` starts its own production preview on port 4174 and leaves the development server alone. For a manual Pages-style preview use `npm run build:pages` followed by `npm run preview -- --base=/OS-Project/`. GitHub Pages must use **Settings → Pages → Source → GitHub Actions**. The workflow publishes only the verified `dist` directory. Hosting verification is recorded in `docs/VALIDATION.md` after the first successful deployment.

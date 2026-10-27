@@ -59,7 +59,8 @@ describe('MemoryManager foundation', () => {
     const { manager, events } = createMemory(256)
     manager.setMode(MemoryMode.PAGED)
     const snapshot = manager.getMemorySnapshot()
-    snapshot.regions[0].allocated = true
+    Reflect.set(snapshot.regions[0], 'allocated', true)
+    expect(manager.getMemorySnapshot().regions[0].allocated).toBe(false)
     manager.reset()
     expect(manager.getMemorySnapshot()).toMatchObject({ mode: MemoryMode.CONTIGUOUS, totalMemory: 256, usedMemory: 0, freeMemory: 256 })
     expect(manager.getMemorySnapshot().regions[0].allocated).toBe(false)

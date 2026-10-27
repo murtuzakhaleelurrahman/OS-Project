@@ -19,27 +19,27 @@ function processes() {
 describe('scheduler strategies', () => {
   it('selects FCFS by arrival and PID', () => {
     const { manager, p1, p2 } = processes()
-    expect(new FcfsScheduler().selectNextProcess(manager.getReadyQueue(), 0)?.pid).toBe(p1.pid)
+    expect(new FcfsScheduler().selectNextProcess(manager.getReadyQueue())?.pid).toBe(p1.pid)
     expect(p2.pid).toBe('P2')
   })
 
   it('selects SJF by burst, then arrival and PID', () => {
     const { manager, p2 } = processes()
-    expect(new SjfScheduler().selectNextProcess(manager.getReadyQueue(), 0)?.pid).toBe(p2.pid)
+    expect(new SjfScheduler().selectNextProcess(manager.getReadyQueue())?.pid).toBe(p2.pid)
   })
 
   it('selects lower numeric priority first', () => {
     const { manager, p2 } = processes()
-    expect(new PriorityScheduler().selectNextProcess(manager.getReadyQueue(), 0)?.pid).toBe(p2.pid)
+    expect(new PriorityScheduler().selectNextProcess(manager.getReadyQueue())?.pid).toBe(p2.pid)
   })
 
   it('rotates Round Robin FIFO queue and rejects invalid quantum', () => {
     const { manager, p1, p2 } = processes()
     const scheduler = new RoundRobinScheduler(1)
-    expect(scheduler.selectNextProcess(manager.getReadyQueue(), 0)?.pid).toBe(p1.pid)
+    expect(scheduler.selectNextProcess(manager.getReadyQueue())?.pid).toBe(p1.pid)
     scheduler.onProcessDispatched?.(p1)
     scheduler.onProcessPreempted?.(p1)
-    expect(scheduler.selectNextProcess(manager.getReadyQueue(), 0)?.pid).toBe(p2.pid)
+    expect(scheduler.selectNextProcess(manager.getReadyQueue())?.pid).toBe(p2.pid)
     expect(() => new RoundRobinScheduler(0)).toThrow()
   })
 })

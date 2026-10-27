@@ -54,7 +54,11 @@ describe('expanded CPU policies', () => {
     const result = run(scenario)
     expect(result.memory).toMatchObject({ references: 6, faults: 2, hits: 4 })
     expect(result.busyTicks).toBe(6)
-    for (const item of result.processes) expect(item.completion! - item.arrival).toBe(item.bursts[0].duration + item.waiting + item.blocked + item.jobWait)
+    for (const item of result.processes) {
+      const first = item.bursts[0]
+      expect(first.kind).toBe('cpu')
+      if (first.kind === 'cpu') expect(item.completion! - item.arrival).toBe(first.duration + item.waiting + item.blocked + item.jobWait)
+    }
   })
   it('timer playback matches step execution with preemption and switch overhead', () => {
     vi.useFakeTimers()
