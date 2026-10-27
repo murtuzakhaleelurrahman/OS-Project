@@ -40,3 +40,9 @@ Trace/result exports disclose retention truncation. Large custom scenarios stop 
 ## Review follow-up
 
 The follow-up patch passes the real npm commands locally: 148 tests, production build and lint. Three preset-identification tests cover normalized built-ins, edits under an unchanged name, and independent policy changes. Browser checks confirm unchanged quantum focus/blur preserves t=14, a changed quantum resets the run, invalid quantum input preserves the result, and edited bursts display Custom workload. The new CI workflow is configured for Ubuntu, Windows and macOS; a successful hosted run is not claimed until GitHub Actions reports it.
+
+## E1 extension verification (27 October 2026)
+
+The suite now contains 158 tests. Tests/build/lint pass locally, including the original proposal cases with memory disabled. New cases cover local FIFO/LRU, one fault followed by exact retry counting, mixed page-in and explicit I/O on the same disk, termination/admission, two-process time conservation, overhead costs, invalid quotas/references, and reset during paging.
+
+The thrashing reference workload uses sixty productive ticks and a three-page cyclic working set. One/two frames give 60 faults and 16.67% productive utilization; three or more frames give 3 faults and 80.00%. The browser independently displayed these results, showed P2 waiting in JOB with 3/4 frames reserved, then showed both processes terminated and 0/4 reserved after cleanup. This is local replacement with reserved per-process quotas and clean read-only pages; global replacement and dirty-page writeback remain future work. The browser's original stale tab failed to reconnect; verification succeeded in a fresh tab against the restarted localhost server.

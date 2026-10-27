@@ -36,7 +36,11 @@ export function comparePolicies(input: unknown): ComparisonRow[] {
   return rows
 }
 export function resultBundle(scenario: Scenario, result: IntegratedSnapshot) {
-  return { schemaVersion: 1, kind: 'mini-os-result', scenario: structuredClone(scenario), assumptions: modelAssumptions, traceTruncated: result.processedEvents > result.retainedEvents, result: structuredClone(result) }
+  const assumptions = {
+    ...modelAssumptions, contextSwitchCost: scenario.cpu.contextSwitchCost ?? 0,
+    memory: scenario.memory ? { ...scenario.memory, scope: 'local replacement', pages: 'clean, read-only', faultRetry: 'same reference retried; no duplicate count' } : 'disabled',
+  }
+  return { schemaVersion: 1, kind: 'mini-os-result', scenario: structuredClone(scenario), assumptions, traceTruncated: result.processedEvents > result.retainedEvents, result: structuredClone(result) }
 }
 export function importScenario(text: string): Scenario {
   if (text.length > 1_000_000) throw new Error('Scenario input is limited to 1 MB')
@@ -49,13 +53,13 @@ function csvCell(value: unknown): string {
   return '"' + text.replaceAll('"', '""') + '"'
 }
 function csv(rows: unknown[][]): string { return rows.map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n' }
-const metadataHeaders = ['schema_version', 'scenario', 'cpu_policy', 'quantum', 'disk_policy', 'base_service', 'seek_cost', 'context_switch_cost', 'units', 'phase_order', 'cpu_ties', 'disk_ties', 'priority_rule', 'metric_horizon']
-function metadata(scenario: Scenario): unknown[] { return [1, scenario.name, scenario.cpu.algorithm, scenario.cpu.quantum, scenario.disk.algorithm, scenario.disk.baseService, scenario.disk.seekCost, 0, modelAssumptions.units, modelAssumptions.phases.join(' > '), modelAssumptions.cpuTies, modelAssumptions.diskTies, modelAssumptions.priority, modelAssumptions.metricHorizon] }
+const metadataHeaders = ['schema_version', 'scenario', 'cpu_policy', 'quantum', 'disk_policy', 'base_service', 'seek_cost', 'context_switch_cost', 'units', 'phase_order', 'cpu_ties', 'disk_ties', 'priority_rule', 'metric_horizon', 'memory_mode', 'physical_frames', 'replacement', 'page_in_ticks']
+function metadata(scenario: Scenario): unknown[] { return [1, scenario.name, scenario.cpu.algorithm, scenario.cpu.quantum, scenario.disk.algorithm, scenario.disk.baseService, scenario.disk.seekCost, scenario.cpu.contextSwitchCost ?? 0, modelAssumptions.units, modelAssumptions.phases.join(' > '), modelAssumptions.cpuTies, modelAssumptions.diskTies, modelAssumptions.priority, modelAssumptions.metricHorizon, scenario.memory?.mode ?? 'disabled', scenario.memory?.frames, scenario.memory?.replacement, scenario.memory?.pageInTicks] }
 export function traceCsv(scenario: Scenario, result: IntegratedSnapshot): string {
   return csv([[...metadataHeaders, 'status', 'processed_events', 'trace_truncated', 'sequence', 'time', 'phase', 'type', 'process', 'explanation'], ...result.trace.map((event) => [...metadata(scenario), result.status, result.processedEvents, result.processedEvents > result.retainedEvents, event.sequence, event.time, event.phase, event.type, event.pid ?? '', event.message])])
 }
 export function metricsCsv(scenario: Scenario, result: IntegratedSnapshot): string {
-  const system = [result.status, result.time, result.busyTicks, result.idleTicks, result.utilization, result.throughput, result.disk.totalMovement]
-  const rows = result.processes.length ? result.processes.map((process) => [...metadata(scenario), ...system, process.id, process.arrival, process.completion, process.firstStart == null ? null : process.firstStart - process.arrival, process.waiting, process.blocked, process.completion == null ? null : process.completion - process.arrival]) : [[...metadata(scenario), ...system, '', '', '', '', '', '', '']]
-  return csv([[...metadataHeaders, 'status', 'elapsed_ticks', 'productive_ticks', 'idle_ticks', 'cpu_utilization_percent', 'throughput_processes_per_tick', 'disk_movement_cylinders', 'process', 'arrival', 'completion', 'response', 'ready_wait', 'blocked', 'turnaround'], ...rows])
+  const system = [result.status, result.time, result.busyTicks, result.idleTicks, result.overheadTicks, result.utilization, result.throughput, result.disk.totalMovement, result.memory?.faults, result.memory?.hits]
+  const rows = result.processes.length ? result.processes.map((process) => [...metadata(scenario), ...system, process.id, process.arrival, process.admitted, process.completion, process.firstStart == null ? null : process.firstStart - process.arrival, process.waiting, process.blocked, process.jobWait, process.completion == null ? null : process.completion - process.arrival]) : [[...metadata(scenario), ...system, '', '', '', '', '', '', '', '', '']]
+  return csv([[...metadataHeaders, 'status', 'elapsed_ticks', 'productive_ticks', 'idle_ticks', 'switch_overhead_ticks', 'cpu_utilization_percent', 'throughput_processes_per_tick', 'disk_movement_cylinders', 'page_faults', 'page_hits', 'process', 'arrival', 'admitted', 'completion', 'response', 'ready_wait', 'blocked', 'job_wait', 'turnaround'], ...rows])
 }

@@ -2,7 +2,7 @@
 
 [![Verify simulator](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/workflows/ci.yml)
 
-A browser-based educational OS simulator built with React, TypeScript and Vite. No backend is required. The integrated system models **one CPU and one disk** with a deterministic event queue. Memory, concurrency and resource-safety laboratories are explicitly separate experiments.
+A browser-based educational OS simulator built with React, TypeScript and Vite. No backend is required. The integrated system models **one CPU and one disk** with a deterministic event queue. Memory can optionally participate in the integrated system through frame admission and demand paging. The focused memory, concurrency and resource-safety laboratories remain separate experiments.
 
 ## Run
 
@@ -46,7 +46,7 @@ Open the local URL printed in the terminal. For a production preview, run `npm r
 
 All integrated durations use integer logical ticks; CPU bursts are positive. Lower numeric priority means higher priority. SJF chooses the shortest next CPU burst. FCFS/SJF/Priority ties use ready-entry time then natural process ID; RR uses FIFO ready entry. Arrivals at a quantum boundary precede requeuing. Burst completion wins over expiry at an exact quantum boundary.
 
-Disk service is `max(1, baseService + seekCost * abs(target - head))`; active service is not preempted. FCFS uses enqueue order; SSTF ties use enqueue order. Context-switch cost is zero. Only direct switches between different processes count as context switches; dispatch after an idle gap does not.
+Disk service is `max(1, baseService + seekCost * abs(target - head))`; active service is not preempted. FCFS uses enqueue order; SSTF ties use enqueue order. Context-switch cost defaults to zero; optional `cpu.contextSwitchCost` charges direct switches, with overhead reported separately. Only direct switches between different processes count as context switches; dispatch after an idle gap does not.
 
 Waiting accumulates only in READY; blocked time only in BLOCKED. Turnaround = completion - arrival, response = first CPU start - arrival. CPU utilization = productive ticks / elapsed ticks; throughput is completed processes per tick. The completed horizon starts at zero and ends at final completion. Undefined ratios display N/A. Memory addresses are bytes; concurrency uses operation steps, independent of integrated ticks.
 
@@ -74,8 +74,20 @@ See [validation](docs/VALIDATION.md), [architecture and limitations](docs/ARCHIT
 
 Integrated scenarios accept at most 100 processes and 101 bursts per process; event execution is bounded by an explicit limit (maximum 100,000). The decision trace retains the latest 1,000 events. Result JSON and CSV indicate truncation; scenario JSON always retains the replayable input. Browser imports are limited to 1 MB. Memory labs accept up to 256 resident frames; reference experiments use 1–32 frames and up to 500 references. Actor scripts are bounded at 1,000 operations.
 
-This is an educational abstraction, not real host OS management. Integrated demand paging, TLB/two-level paging, preemptive priority/SRTF, aging/MLFQ, a general thread scheduler, deadlock detection, filesystem and terminal remain outside the committed core. Unsafe Banker results do not establish an existing deadlock. No cloud hosting or backend is configured.
+This is an educational abstraction, not real host OS management. TLB/two-level paging, preemptive priority/SRTF, aging/MLFQ, a general thread scheduler, deadlock detection, filesystem and terminal remain outside the committed core. Unsafe Banker results do not establish an existing deadlock. No cloud hosting or backend is configured.
 
 ## Continuous integration
 
 The GitHub Actions workflow in `.github/workflows/ci.yml` runs the real npm test, production build and lint commands on Ubuntu, Windows and macOS with Node 22. It runs on pushes, pull requests and manual dispatch. A workflow file is not evidence of a successful hosted run; see the repository Actions tab for actual results.
+
+## Integrated memory extension (E1)
+
+Choose **Demand paging / thrashing** in the integrated preset selector. The 60-tick workload references pages 0,1,2 repeatedly. Compare frames / thrashing shows 60 faults and 16.7% productive utilization with one frame, versus 3 faults and 80.0% with three frames, under the stated five-tick clean page-in cost. Useful work is unchanged. The benchmark changes frame count only; it does not invent hardware measurements.
+
+Choose **Memory admission and cleanup** to see a process wait in the FIFO job queue until another terminates and frees enough frames. Memory remains opt-in; the original CPU/disk examples are unchanged when disabled.
+
+An optional `memory` object supplies `mode` (fixed/demand), `frames`, `pageSize`, `replacement` (FIFO/LRU), `pageInTicks` and `pageInCylinder`. Processes may declare `memoryPages` and `frameQuota`. Demand CPU bursts may supply `references`, one virtual page per productive tick; omitted references use page zero. Quotas reserve frames for the process lifetime and replacement is local. A fault blocks, uses the shared disk, and retries without double-counting the reference. Page-ins add `pageInTicks` to the existing seek/service formula. Pages are clean/read-only; dirty writeback is not yet implemented.
+
+`cpu.contextSwitchCost` is optional. Initial dispatch and dispatch after an idle gap are free; direct changes to a different process incur the configured overhead, including faulting zero-work dispatches. The selected target waits in READY during the switch. CPU work, switch overhead and idle time sum to elapsed time. For each completed process, turnaround = productive CPU + READY wait + blocked time + job-queue wait.
+
+The integrated view now includes reserved/resident frames, faults/hits/replacements, job waits and process-state timeline lanes. See [the extension roadmap](docs/EXTENSION_PLAN.md) for E2–E7; planned features are not yet implemented.
