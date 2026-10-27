@@ -65,4 +65,10 @@ The real npm clean install succeeds from the lockfile without special peer-depen
 
 The 49 fast-check properties execute 960 generated policy/workload combinations plus 60 replay/share cases, with automatic shrinking and fixed seeds. The additional reset pass checks every generated policy workload again. Coverage across all simulation sources: statements 93.53%, branches 87.96%, functions 96.81%, lines 98.36%. UI coverage is excluded from that figure and exercised through browser checks. Gates are 90% statements/functions, 85% branches and 95% lines. Matching patched Vitest/coverage 4.1.12 and Vite 8.3.5 are locked; npm audit reports zero known vulnerabilities at validation time.
 
-The workflow uploads coverage and browser reports, then permits Pages publishing only after the three-OS verification matrix and browser job succeed. Hosted run and public URL verification are pending the first E4 deployment; local results alone do not establish deployment success.
+The workflow uploads coverage and browser reports, then permits Pages publishing only after the three-OS verification matrix and browser job succeed. Local results alone do not establish deployment success.
+
+## E4 hosted acceptance
+
+[Run 40550899158](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/runs/40550899158), commit `917c0ff`, completed successfully on 27 October 2026: Ubuntu, Windows and macOS verification, the five Chromium smoke tests, report uploads and the dependent Pages deployment. The browser job uses the locally verified Windows runner with headless-only Chromium installation. An earlier superseded run was cancelled after its Linux browser dependency bootstrap remained active for several minutes; the final run passed every required job.
+
+[The public simulator](https://murtuzakhaleelurrahman.github.io/OS-Project/) returns HTTP 200 and loads its app assets. Actual public-browser checks reproduce the overlap run at t=14 with 7 useful ticks and 50% utilization, P1/P2 completion and Gantt intervals; the memory lab translates to physical address 5572; returning to the integrated view preserves the run. Generated share links use the public GitHub Pages origin. The browser reported no runtime errors or warnings. These live checks are distinct from the automated production-preview suite and the hosted build result.

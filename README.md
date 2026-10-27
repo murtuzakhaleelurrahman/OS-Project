@@ -2,6 +2,8 @@
 
 [![Verify simulator](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/workflows/ci.yml)
 
+**[Open the live simulator](https://murtuzakhaleelurrahman.github.io/OS-Project/)** · [Verified CI and deployment](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/runs/40550899158)
+
 A browser-based educational OS simulator built with React, TypeScript and Vite. No backend is required. The integrated system models **one CPU and one disk** with a deterministic event queue. Memory can optionally participate in the integrated system through frame admission and demand paging. The focused memory, concurrency and resource-safety laboratories remain separate experiments.
 
 ## Run
@@ -74,7 +76,7 @@ See [validation](docs/VALIDATION.md), [architecture and limitations](docs/ARCHIT
 
 Integrated scenarios accept at most 100 processes and 101 bursts per process; event execution is bounded by an explicit limit (maximum 100,000). The decision trace retains the latest 1,000 events. Result JSON and CSV indicate truncation; scenario JSON always retains the replayable input. Browser imports are limited to 1 MB. Memory labs accept up to 256 resident frames; reference experiments use 1–32 frames and up to 500 references. Actor scripts are bounded at 1,000 operations.
 
-This is an educational abstraction, not real host OS management. TLB/two-level paging, a general thread scheduler, deadlock detection, filesystem and terminal remain outside the committed core. Unsafe Banker results do not establish an existing deadlock. No cloud hosting or backend is configured.
+This is an educational abstraction, not real host OS management. TLB/two-level paging, a general thread scheduler, deadlock detection, filesystem and terminal remain outside the committed core. Unsafe Banker results do not establish an existing deadlock. GitHub Pages hosts the client app; there is no backend.
 
 ## Continuous integration
 
@@ -108,7 +110,7 @@ See `docs/EXTENSION_PLAN.md` for the precise contracts. FCFS/SJF/Priority rankin
 - **Time travel:** use Previous event, or Prepare replay slider to jump to any queue-event index. Replay rebuilds the exact CPU/disk/memory state, even beyond the 1,000-entry trace retention cap. Same-tick events remain distinct. An event-limited run has a labelled incomplete history.
 - **Predict first:** try the FCFS-order or one-frame page-fault exercise. Submit a guess to reveal the actual engine result and an explanation. These lessons are independent of the active scenario.
 - **Seeded comparisons:** choose an unsigned 32-bit seed, up to 100 workloads and up to 12 processes per workload. All eight CPU policies receive identical generated CPU/I/O scripts, arrivals and priorities; the selected disk policy and costs stay fixed. Memory is disabled for this study. Charts compare mean READY wait, turnaround and throughput. Limited runs produce N/A means; Stop comparison keeps a labelled partial sample. Repeating a seed and configuration reproduces the results.
-- **Save & share:** Save in browser stores one workload locally; Load saved workload restores it. Create share link provides a selectable URL containing the complete scenario, loaded at event zero. Links are limited to 16,000 characters and validated before loading; use JSON export for larger workloads. Localhost links require another local copy of the app; hosting is planned in E4.
+- **Save & share:** Save in browser stores one workload locally; Load saved workload restores it. Create share link provides a selectable URL containing the complete scenario, loaded at event zero. Links are limited to 16,000 characters and validated before loading; use JSON export for larger workloads. Use the live simulator to create public links. Localhost links require another local copy of the app.
 
 Saving and sharing are explicit. Playback, predictions and comparison results are not automatically stored. Existing process-state lanes distinguish I/O blocking from page faults and READY waits, while the disk chart shows physical routes.
 
@@ -128,4 +130,4 @@ npm run lint
 
 Coverage measures all `src/simulation/**/*.ts`, including previously unimported files, and excludes React UI. Gates require statements/functions >=90%, branches >=85%, and lines >=95%. Open `coverage/index.html` for the local HTML report; `coverage/lcov.info` is available for other tooling. Chromium tests cover all four modes plus replay, paging, 48-pair comparisons, prediction, seeded-study stop/restart, local saving and URL sharing. Open the browser report with `npm run test:e2e:report`. Generated reports stay out of Git.
 
-`npm run build:pages` builds assets for `/OS-Project/`; `npm run test:e2e` starts its own production preview on port 4174 and leaves the development server alone. For a manual Pages-style preview use `npm run build:pages` followed by `npm run preview -- --base=/OS-Project/`. GitHub Pages must use **Settings → Pages → Source → GitHub Actions**. The workflow publishes only the verified `dist` directory. Hosting verification is recorded in `docs/VALIDATION.md` after the first successful deployment.
+`npm run build:pages` builds assets for `/OS-Project/`; `npm run test:e2e` starts its own production preview on port 4174 and leaves the development server alone. For a manual Pages-style preview use `npm run build:pages` followed by `npm run preview -- --base=/OS-Project/`. GitHub Pages is configured to use **Settings → Pages → Source → GitHub Actions**. The workflow publishes only the verified `dist` directory. The first verified deployment and live browser checks are recorded in `docs/VALIDATION.md`.
