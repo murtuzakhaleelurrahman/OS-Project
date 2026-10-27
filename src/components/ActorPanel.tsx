@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ActorLab, bufferPreset, lostUpdatePreset, mutexPreset } from '../simulation/synchronization/ActorLab'
+import { PhilosophersPanel } from './PhilosophersPanel'
 
 const presets = [lostUpdatePreset, mutexPreset, bufferPreset]
 export function ActorPanel() {
@@ -16,5 +17,6 @@ export function ActorPanel() {
     <div className="integrated-stats">{[['Shared value', snapshot.shared], ['Operations', snapshot.tick], ['Buffer occupancy', `${snapshot.buffer.length}/${lab.scenario.capacity}`], ['Items consumed', snapshot.consumed.length]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
     <section className="integrated-card"><h2>Actors and resources</h2><div className="table-wrap"><table><thead><tr><th>Actor</th><th>Progress</th><th>Local register</th><th>Waiting for</th><th>Blocked steps</th></tr></thead><tbody>{snapshot.actors.map((actor) => <tr key={actor.id}><td>{actor.id}</td><td>{actor.pc}/{actor.program.length}</td><td>{actor.local}</td><td>{actor.blockedOn || (actor.pc === actor.program.length ? 'finished' : 'ready')}</td><td>{actor.blockedTicks}</td></tr>)}</tbody></table></div>{Object.entries(snapshot.mutexes).map(([id, mutex]) => <p className="integrated-hint" key={id}>Mutex {id}: owner {mutex.owner ?? 'none'} · FIFO waiters: {mutex.waiters.join(' → ') || 'none'}</p>)}{Object.entries(snapshot.semaphores).map(([id, semaphore]) => <p className="integrated-hint" key={id}>Semaphore {id}: {semaphore.permits} free permits · FIFO waiters: {semaphore.waiters.join(' → ') || 'none'}</p>)}<p className="integrated-hint">Buffer: [{snapshot.buffer.join(', ')}] · Consumed: [{snapshot.consumed.join(', ')}]</p></section>
     <section className="integrated-card"><h2>Interleaving trace</h2><ol className="integrated-trace">{[...snapshot.trace].reverse().map((entry) => <li key={entry.tick}><time>#{entry.tick}</time><div><strong>{entry.actor} / {entry.operation.toUpperCase()}</strong><p>{entry.message} Shared={entry.shared}; buffer occupancy={entry.occupancy}.</p></div></li>)}</ol></section>
+    <PhilosophersPanel />
   </main>
 }

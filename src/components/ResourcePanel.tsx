@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { bankerPreset, checkSafety, evaluateRequest, validateResources, type RequestResult } from '../simulation/resources/Banker'
+import { DeadlockPanel } from './DeadlockPanel'
 
 export function ResourcePanel() {
   const [state, setState] = useState(structuredClone(bankerPreset))
@@ -15,5 +16,6 @@ export function ResourcePanel() {
     </section>
     <section className="integrated-card"><h2>Evaluate a request</h2><div className="integrated-controls"><label>Process<select value={process} onChange={(event) => setProcess(Number(event.target.value))}>{state.allocation.map((_, index) => <option key={index} value={index}>P{index + 1}</option>)}</select></label><label>Request vector<input style={{ width: 180 }} value={request} onChange={(event) => setRequest(event.target.value)} placeholder="e.g. 1 0 2" /></label><button disabled={!state.allocation.length} onClick={() => { try { const values = request.trim() ? request.trim().split(/[\s,]+/).map(Number) : []; const next = evaluateRequest(state, process, values); setResult(next); setState(next.state); setInput(JSON.stringify(next.state, null, 2)); setError('') } catch (failure) { setError(failure instanceof Error ? failure.message : 'Invalid request') } }}>Evaluate request</button></div>{error && <p role="alert" className="integrated-error">{error}</p>}{result && <div aria-live="polite"><p><strong>{result.status.toUpperCase()}</strong> · {result.reason}</p><p className="integrated-hint">Request-analysis sequence: {result.safety.sequence.map((index) => `P${index + 1}`).join(' → ') || 'none'}{result.safety.unfinished.length > 0 && `; unfinished: ${result.safety.unfinished.map((index) => `P${index + 1}`).join(', ')}`}</p></div>}</section>
     <section className="integrated-card"><h2>Safety trace for the current state</h2><ol className="integrated-trace">{safety.steps.map((step, index) => <li key={index}><time>{index + 1}</time><div><strong>P{step.process + 1} CAN FINISH</strong><p>Need [{safety.need[step.process].join(', ')}] ≤ Work [{step.before.join(', ')}]. Release allocation → Work [{step.after.join(', ')}].</p></div></li>)}</ol></section>
+    <DeadlockPanel />
   </main>
 }
