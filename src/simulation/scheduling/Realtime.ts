@@ -41,7 +41,12 @@ export class Realtime {
   private segments: ScheduleSegment[] = []
   private trace: { time: number; message: string }[] = []
   private previous: string | undefined
-  constructor(input: unknown = realtimePreset) { this.scenario = parseRealtime(input); this.release() }
+  private taskOrder: Map<string, number>
+  constructor(input: unknown = realtimePreset) {
+    this.scenario = parseRealtime(input)
+    this.taskOrder = new Map(this.scenario.tasks.map((task) => task.id).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map((id, index) => [id, index]))
+    this.release()
+  }
   private log(message: string): void { this.trace.push({ time: this.time, message }); if (this.trace.length > 500) this.trace.shift() }
   private release(): void {
     if (this.time >= this.scenario.horizon) return
@@ -56,10 +61,13 @@ export class Realtime {
   next(): boolean {
     if (this.limited || this.time >= this.scenario.horizon) return false
     const ready = this.jobs.filter((job) => job.completion === undefined)
-    ready.sort((a, b) => this.scenario.policy === 'EDF'
-      ? a.deadline - b.deadline || a.release - b.release || a.task.localeCompare(b.task, undefined, { numeric: true }) || a.id.localeCompare(b.id)
-      : a.period - b.period || a.task.localeCompare(b.task, undefined, { numeric: true }) || a.release - b.release)
-    const runner = ready[0]
+    // Only the minimum is needed. Cache fixed task-ID ranks and avoid sorting
+    // thousands of overdue jobs (and rebuilding locale comparators) each tick.
+    const compare = (a: PeriodicJob, b: PeriodicJob) => this.scenario.policy === 'EDF'
+      ? a.deadline - b.deadline || a.release - b.release || this.taskOrder.get(a.task)! - this.taskOrder.get(b.task)!
+      : a.period - b.period || this.taskOrder.get(a.task)! - this.taskOrder.get(b.task)! || a.release - b.release
+    let runner: PeriodicJob | undefined
+    for (const job of ready) if (!runner || compare(job, runner) < 0) runner = job
     if (runner) {
       runner.firstStart ??= this.time; runner.remaining--; this.busy++
       for (const job of ready) if (job !== runner) job.waiting++
