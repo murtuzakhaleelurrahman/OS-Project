@@ -1,6 +1,6 @@
 # Proposal implementation plan
 
-Historical baseline: commit `951e601`, 102 tests. Current suite: 280 core/property tests plus 8 Chromium browser tests (including review follow-up and E1–E5 extensions). The phase counts below describe each completed milestone. All paths in this document are repository-relative.
+Historical baseline: commit `951e601`, 102 tests. Current suite: 312 core/property tests plus 11 Chromium browser tests (including review follow-up and E1–E6 extensions). The phase counts below describe each completed milestone. All paths in this document are repository-relative.
 The original course proposal (12 October 2026) was supplied separately and is not distributed here. The implemented scope, model contract and acceptance cases are reproduced below and in VALIDATION.md so the repository is self-contained.
 
 Each phase is developed, tested, built and committed locally before the next phase.
@@ -21,4 +21,4 @@ One CPU and one disk. Logical durations are integer ticks; CPU bursts are positi
 
 ## Deferred extensions
 
-The original optional list included integrated demand paging, expanded scheduling, TLB, two-level paging, general thread scheduling, deadlock detection, a filesystem and terminal. E1–E5 now deliver demand paging, expanded policies and the independent TLB/deadlock labs. See EXTENSION_PLAN.md for remaining work; two-level paging, a general integrated thread scheduler and terminal are not claimed complete.
+The original optional list included integrated demand paging, expanded scheduling, TLB, two-level paging, general thread scheduling, deadlock detection, a filesystem and terminal. E1–E6 now deliver demand paging, expanded policies and independent TLB/deadlock/filesystem labs. See EXTENSION_PLAN.md for remaining work; two-level paging, a general integrated thread scheduler and terminal are not claimed complete.
