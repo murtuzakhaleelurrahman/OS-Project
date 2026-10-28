@@ -101,10 +101,16 @@ Six fixed-seed properties execute 20 command scripts per disk policy. An indepen
 
 ## E7 local acceptance (28 October 2026)
 
-337 core/property tests and 14 production-preview Chromium tests pass with strict test typing, build and lint. Simulation coverage: 95.15% statements, 91.03% branches, 97.46% functions and 98.70% lines; gates remain unchanged. No unresolved TODO/FIXME or unimplemented-feature placeholders were found in the source audit.
+337 core/property tests and 14 production-preview Chromium tests pass with strict test typing, build and lint. Simulation coverage: 95.16% statements, 91.09% branches, 97.47% functions and 98.70% lines; gates remain unchanged. No unresolved TODO/FIXME or unimplemented-feature placeholders were found in the source audit.
 
 The 25 new core tests include balancing (32 versus 16 ticks), one actual migration with two overhead ticks, direct/post-idle/same-task switch costs, arrivals during switching, exact RR boundaries, strict local preemption, least-load assignment, balance intervals, limits, trace retention, input validation and snapshot isolation. Four fixed-seed multicore properties run 30 generated workloads each, checking membership and per-core/process/segment conservation after every tick. One-core cases also compare completion/wait/makespan with the integrated engine; fresh-run and stepped results match.
 
 Real-time tests verify the 34/35 utilization contrast (EDF meets all 12 jobs, RM misses one), the 13-busy/7-idle feasible oracle, deadline-exact completion, horizon-exclusive releases, retained overlap/overdue work, future deadlines, offsets/constrained deadlines, fixed tie rules, release caps and bound applicability. Two 60-case properties check every tick for work/wait/deadline conservation, release counts and policy priority from the resulting schedule. The original core tests remain intact.
 
-Browser acceptance covers all six modes, balancing comparisons, per-core accounting, migration cost, EDF/RM comparison, missed markers, custom-preset identification, invalid edits preserving results and navigation preserving lab state. Default, migration and deadline timeline screenshots were generated and visually inspected. Hosted/public acceptance will be recorded after deployment.
+Browser acceptance covers all six modes, balancing comparisons, per-core accounting, migration cost, EDF/RM comparison, missed markers, custom-preset identification, invalid edits preserving results and navigation preserving lab state. Default, migration and deadline timeline screenshots were generated and visually inspected.
+
+## E7 hosted and public acceptance
+
+[Run 40704517617](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/runs/40704517617), commit `febc54c`, passed all Ubuntu, Windows and macOS type/coverage/build/lint checks, all 14 Chromium cases, artifact uploads and Pages deployment. The complete 14-case browser suite then passed directly against the public Pages URL via `PLAYWRIGHT_BASE_URL`, including the multicore and real-time interactions. Public-build timeline screenshots were retained.
+
+The first hosted attempt exposed a Windows timeout in the 4,000-job stress case. Selecting the best ready job now uses a linear minimum pass with cached fixed task ranks, instead of repeatedly sorting the backlog and constructing locale comparisons. The workload, assertions, timeout and coverage gates are unchanged; the corrected hosted run passes. The agreed E1–E7 roadmap is complete within the documented model boundaries.

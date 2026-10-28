@@ -1,6 +1,6 @@
 # Project completion checklist
 
-Audit date: 28 October 2026. Scope: the original accepted core plus the agreed E1–E7 extension roadmap. All requested feature implementations are present; local acceptance is green. E7 hosted/public acceptance is recorded after deployment in VALIDATION.md. Historical counts in milestone sections remain historical.
+Audit date: 28 October 2026. Scope: the original accepted core plus the agreed E1–E7 extension roadmap. All requested feature implementations are present. Local checks, three-OS hosted checks, browser tests and public deployment acceptance pass; see [run 40704517617](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/runs/40704517617) and VALIDATION.md. Historical counts in milestone sections remain historical.
 
 | Requested capability | Where to demonstrate | Implementation / evidence |
 | --- | --- | --- |
@@ -23,6 +23,6 @@ Audit date: 28 October 2026. Scope: the original accepted core plus the agreed E
 | Portable setup, docs, scheduler compatibility explanation | README / ARCHITECTURE | Plain npm commands; common rank helpers with documented model adapters |
 | Public demonstration and deployment gates | README live link / Actions | Three-OS verification plus browser job before Pages deploy |
 
-No roadmap feature remains labelled Planned after final hosted acceptance. The source audit found no unresolved TODO/FIXME or feature-placeholder implementation. HTML input placeholders are ordinary UI hints. Earlier manual tools remain deliberately available for compatibility; they do not mutate integrated runs.
+No roadmap feature remains planned. The source audit found no unresolved TODO/FIXME or feature-placeholder implementation. HTML input placeholders are ordinary UI hints. Earlier manual tools remain deliberately available for compatibility; they do not mutate integrated runs.
 
 Documented boundaries: this is a browser teaching simulator. Multicore/real-time/filesystem/resource/concurrency labs have explicit independent models; it does not claim a general integrated multiprocessor kernel. Two-level paging, host terminal access, dirty-page writeback, filesystem crash recovery and unlimited-run schedulability are outside the agreed phase deliverables. A preserved limitation is not counted as an implemented feature. Full model assumptions and limits are in EXTENSION_PLAN.md and ARCHITECTURE.md.

@@ -2,7 +2,7 @@
 
 [![Verify simulator](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/workflows/ci.yml)
 
-**[Open the live simulator](https://murtuzakhaleelurrahman.github.io/OS-Project/)** · [Verified CI and deployment](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/runs/40638576704)
+**[Open the live simulator](https://murtuzakhaleelurrahman.github.io/OS-Project/)** · [Verified CI and deployment](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/runs/40704517617)
 
 A browser-based educational OS simulator built with React, TypeScript and Vite. No backend is required. The integrated system models **one CPU and one disk** with a deterministic event queue. Memory can optionally participate in the integrated system through frame admission and demand paging. The focused memory, concurrency and resource-safety laboratories remain separate experiments.
 
