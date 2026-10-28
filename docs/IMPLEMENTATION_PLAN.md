@@ -1,6 +1,6 @@
 # Proposal implementation plan
 
-Historical baseline: commit `951e601`, 102 tests. Current suite: 312 core/property tests plus 11 Chromium browser tests (including review follow-up and E1–E6 extensions). The phase counts below describe each completed milestone. All paths in this document are repository-relative.
+Historical baseline: commit `951e601`, 102 tests. Current suite: 337 core/property tests plus 14 Chromium browser tests (including review follow-up and E1–E7 extensions). The phase counts below describe each completed milestone. All paths in this document are repository-relative.
 The original course proposal (12 October 2026) was supplied separately and is not distributed here. The implemented scope, model contract and acceptance cases are reproduced below and in VALIDATION.md so the repository is self-contained.
 
 Each phase is developed, tested, built and committed locally before the next phase.
@@ -15,10 +15,10 @@ Existing algorithm laboratories remain available. Optional extensions do not cou
 | 5 | Presets, fresh-input comparisons, scenario/result JSON and trace/metric CSV | Replay exported scenarios; same input across policies; exported assumptions and units | Complete: 131 tests, build and lint pass |
 | 6 | Memory lab configuration, navigation, documentation and acceptance | Paging 7/6/5 faults; translation 5572; allocation/free/coalescing; all tests/build/lint pass | Complete: 145 tests, build, lint and browser smoke checks pass |
 
-## Model contract
+## Original baseline model contract
 
 One CPU and one disk. Logical durations are integer ticks; CPU bursts are positive. Event order is timestamp, phase (completion, arrival, quantum expiry, dispatch), insertion sequence. Ready candidates use ready-entry time then process ID, with FIFO ordering for RR. Lower numeric priority wins. SJF and Priority are non-preemptive. Context-switch cost is zero. Integrated runs and memory/synchronization/resource laboratories are explicitly separate.
 
-## Deferred extensions
+## Extension completion and scope
 
-The original optional list included integrated demand paging, expanded scheduling, TLB, two-level paging, general thread scheduling, deadlock detection, a filesystem and terminal. E1–E6 now deliver demand paging, expanded policies and independent TLB/deadlock/filesystem labs. See EXTENSION_PLAN.md for remaining work; two-level paging, a general integrated thread scheduler and terminal are not claimed complete.
+The agreed E1–E7 roadmap now implements integrated demand paging/expanded policies and independent TLB, deadlock, filesystem, multicore and real-time labs. The completion audit maps every agreed suggestion to its controls and checks. Model boundaries such as two-level paging, a general integrated thread scheduler and host terminal are separate from these agreed phases; they are not presented as implemented.

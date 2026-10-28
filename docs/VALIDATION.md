@@ -18,7 +18,7 @@ Validation date: 26 October 2026. Commands run from the repository root.
 | Edge cases | Empty workload/N/A ratios, idle gaps, exact quantum completion, arrival at quantum boundary, duplicate disk cylinders, one-frame/repeated-page references, invalid matrices, unmap/remap, failed allocation, coalescing, reset during pending CPU/disk completion, event limit and trace retention |
 | State invariants | At most one runner; no duplicate ready membership; turnaround = CPU + READY wait + BLOCKED time; buffer occupancy and production/consumption conservation; safe requests conserve total resources |
 
-The historical baseline at commit `951e601` contained 102 tests. The current suite contains 312 core/property tests plus 11 automated Chromium browser tests. IMPLEMENTATION_PLAN.md records historical milestone counts. Production compilation and lint are required for each phase. Hosted checks run through `.github/workflows/ci.yml` when pushed; deployment records below distinguish local from hosted evidence. Historical manual browser checks remain separate from the automated suite added in E4 and extended in later phases.
+The historical baseline at commit `951e601` contained 102 tests. The current suite contains 337 core/property tests plus 14 automated Chromium browser tests. IMPLEMENTATION_PLAN.md records historical milestone counts. Production compilation and lint are required for each phase. Hosted checks run through `.github/workflows/ci.yml` when pushed; deployment records below distinguish local from hosted evidence. Historical manual browser checks remain separate from the automated suite added in E4 and extended in later phases.
 
 ## Browser smoke checks
 
@@ -98,3 +98,13 @@ Six fixed-seed properties execute 20 command scripts per disk policy. An indepen
 ## E6 hosted acceptance
 
 [Run 40638576704](https://github.com/murtuzakhaleelurrahman/OS-Project/actions/runs/40638576704), commit `79a4a4b`, passed Ubuntu, Windows and macOS type/coverage/build/lint checks, all 11 Chromium tests, report uploads and Pages deployment. Afterwards the same complete browser suite ran directly against `https://murtuzakhaleelurrahman.github.io/OS-Project/` via `PLAYWRIGHT_BASE_URL`: all 11 passed. This verifies the real deployed assets and filesystem controls, rather than inferring live functionality from a successful build. The public fragmentation/block-map screenshot was retained as visual evidence.
+
+## E7 local acceptance (28 October 2026)
+
+337 core/property tests and 14 production-preview Chromium tests pass with strict test typing, build and lint. Simulation coverage: 95.15% statements, 91.03% branches, 97.46% functions and 98.70% lines; gates remain unchanged. No unresolved TODO/FIXME or unimplemented-feature placeholders were found in the source audit.
+
+The 25 new core tests include balancing (32 versus 16 ticks), one actual migration with two overhead ticks, direct/post-idle/same-task switch costs, arrivals during switching, exact RR boundaries, strict local preemption, least-load assignment, balance intervals, limits, trace retention, input validation and snapshot isolation. Four fixed-seed multicore properties run 30 generated workloads each, checking membership and per-core/process/segment conservation after every tick. One-core cases also compare completion/wait/makespan with the integrated engine; fresh-run and stepped results match.
+
+Real-time tests verify the 34/35 utilization contrast (EDF meets all 12 jobs, RM misses one), the 13-busy/7-idle feasible oracle, deadline-exact completion, horizon-exclusive releases, retained overlap/overdue work, future deadlines, offsets/constrained deadlines, fixed tie rules, release caps and bound applicability. Two 60-case properties check every tick for work/wait/deadline conservation, release counts and policy priority from the resulting schedule. The original core tests remain intact.
+
+Browser acceptance covers all six modes, balancing comparisons, per-core accounting, migration cost, EDF/RM comparison, missed markers, custom-preset identification, invalid edits preserving results and navigation preserving lab state. Default, migration and deadline timeline screenshots were generated and visually inspected. Hosted/public acceptance will be recorded after deployment.

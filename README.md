@@ -6,6 +6,8 @@
 
 A browser-based educational OS simulator built with React, TypeScript and Vite. No backend is required. The integrated system models **one CPU and one disk** with a deterministic event queue. Memory can optionally participate in the integrated system through frame admission and demand paging. The focused memory, concurrency and resource-safety laboratories remain separate experiments.
 
+The original core and the agreed E1–E7 feature roadmap are implemented. See the [completion checklist](docs/COMPLETION_AUDIT.md) for features, controls, tests and model boundaries.
+
 ## Run
 
 Use Node.js 22.12+ (the project was validated with 22.20.0).
@@ -32,6 +34,9 @@ Open the local URL printed in the terminal. For a production preview, run `npm r
 - Independent FIFO/LRU/Optimal reference-string experiments with configurable frames and per-access history.
 - Scripted lost-update, mutex-protected increment and bounded-buffer lessons with atomic mutex/semaphore commands and FIFO waiter transfer.
 - Banker safety analysis and tentative requests committed only when safe; unsafe requests roll back.
+- Wait-for deadlock graphs, dining-philosopher prevention, tagged FIFO/LRU TLB and serial EMAT.
+- Virtual filesystem with directories, contiguous/linked/indexed allocation, atomic transaction visibility and disk-backed operations.
+- Multicore per-core queues, work stealing, migration/switch costs, and periodic EDF/rate-monotonic deadline experiments.
 - Presets, editable/importable versioned JSON, all 48 CPU/disk policy comparisons, result/workload JSON and trace/metric CSV exports.
 - The earlier manual dashboard is preserved under Memory & algorithms → Additional manual algorithm tools.
 
@@ -42,7 +47,9 @@ Open the local URL printed in the terminal. For a production preview, run `npm r
 3. **Memory & algorithms:** Run the default references with three frames. FIFO/LRU/Optimal fault totals are 7/6/5. Choose the translation example to show physical byte address 5572.
 4. **Concurrency:** Run Lost update (final shared value 1), then Mutex-protected increment (final value 2), then Bounded buffer.
 5. **Resource safety:** The proposal preset is safe through P1,P2. Request one unit for P2: deferred because the tentative state is unsafe; allocations remain unchanged.
-6. Export a result JSON and re-import it to replay its workload from the beginning.
+6. **File system:** prepare the fragmentation demo and compare contiguous, linked and indexed placement.
+7. **Advanced scheduling:** compare queue balancing (32 versus 16 ticks), then compare EDF/RM deadline outcomes.
+8. Export a result JSON and re-import it to replay its workload from the beginning.
 
 ## Assumptions and metrics
 
@@ -128,7 +135,7 @@ npm run lint
 
 `test:coverage` includes the deterministic unit tests and fast-check properties. Each of the 48 policy pairs runs 20 generated workloads with assertions after every event; another 60 cases verify sharing and replay. Generators cover disabled/fixed/demand memory, FIFO/LRU, frame admission, context-switch costs, both sweep directions and CPU/I/O scripts. Seeds are fixed and fast-check prints a shrunk counterexample and replay path if a property fails. These 1,020 generated cases are represented by 49 property tests, not 1,020 separate unit tests.
 
-Coverage measures all `src/simulation/**/*.ts`, including previously unimported files, and excludes React UI. Gates require statements/functions >=90%, branches >=85%, and lines >=95%. Open `coverage/index.html` for the local HTML report; `coverage/lcov.info` is available for other tooling. Chromium tests cover all five modes, including the original integrated interactions and E5/E6 laboratories. Open the browser report with `npm run test:e2e:report`. Generated reports stay out of Git.
+Coverage measures all `src/simulation/**/*.ts`, including previously unimported files, and excludes React UI. Gates require statements/functions >=90%, branches >=85%, and lines >=95%. Open `coverage/index.html` for the local HTML report; `coverage/lcov.info` is available for other tooling. Chromium tests cover all six modes, including the original integrated interactions and E5–E7 laboratories. Open the browser report with `npm run test:e2e:report`. Generated reports stay out of Git.
 
 `npm run build:pages` builds assets for `/OS-Project/`; `npm run test:e2e` starts its own production preview on port 4174 and leaves the development server alone. For a manual Pages-style preview use `npm run build:pages` followed by `npm run preview -- --base=/OS-Project/`. GitHub Pages is configured to use **Settings → Pages → Source → GitHub Actions**. The workflow publishes only the verified `dist` directory. The first verified deployment and live browser checks are recorded in `docs/VALIDATION.md`.
 
@@ -156,4 +163,18 @@ The independent filesystem disk reuses all six integrated disk selectors and the
 
 Limits: 8–128 blocks, 16–4096 bytes per block, 64 KiB UTF-8 content per file, 128 namespace entries including root, and 256 commands per reset. Names use up to eight ASCII path segments of 1–32 characters, starting with a letter/digit and continuing with letters/digits/dot/underscore/hyphen; dot/parent/empty segments are rejected. Directories each occupy one abstract metadata block; individual entries are not byte-packed. State is temporary and resets on page reload or explicit reset. Integrated scenario save/share does not include filesystem state.
 
-Current totals: **312 core/property tests and 11 Chromium tests**. Six generated filesystem properties check ownership, reservations, exact bytes, namespace behavior and disk conservation across all policies (20 scripts each). Reference: [file allocation methods](https://www.cs.uic.edu/~jbell/CourseNotes/OperatingSystems/12_FileSystemImplementation.html). To check an already deployed build with the same browser suite, set `PLAYWRIGHT_BASE_URL` to the full app URL including its trailing slash, then run `npm run test:e2e`; this bypasses the local preview server.
+The E6 milestone had 312 core/property tests and 11 Chromium tests. Six generated filesystem properties check ownership, reservations, exact bytes, namespace behavior and disk conservation across all policies (20 scripts each). Reference: [file allocation methods](https://www.cs.uic.edu/~jbell/CourseNotes/OperatingSystems/12_FileSystemImplementation.html). To check an already deployed build with the same browser suite, set `PLAYWRIGHT_BASE_URL` to the full app URL including its trailing slash, then run `npm run test:e2e`; this bypasses the local preview server.
+
+## Multicore and real-time scheduling (E7)
+
+Open **Advanced scheduling**. The two laboratories use independent CPU-only integer clocks; they do not change the integrated CPU/disk/paging workload.
+
+**Multicore:** configure 1–8 cores, FCFS/Round Robin/SRTF/preemptive Priority, idle-core work stealing, balance interval and switch/migration cost. Each task has one positive CPU burst. Explicit `initialCore` seeds a queue; omitted homes use least remaining load, then core ID. Completion precedes arrivals, RR expiry, local dispatch and idle-core stealing. Idle cores pull the largest remaining READY job from the most-loaded donor (ties: core ID, READY order, task ID); running/reserved jobs are never stolen. Queue age survives transfer. Priority/SRTF preemption is local and strictly better candidates win; this is not a global optimal-scheduling claim.
+
+The crowded-queue preset takes **32 ticks / 50% utilization** without stealing versus **16 ticks / 100%** with it. The migration preset completes in **10 ticks**, with one execution migration and two overhead ticks on core 0. Queue transfers before first service are counted separately from execution migrations. Switch overhead applies to direct different-task changes; post-idle and initial dispatch have no switch cost. Migration cost applies when a task resumes on a different core. Waiting includes reserved dispatch overhead. Every core conserves useful + idle + overhead = elapsed; each task conserves executed + waiting = its elapsed lifetime. First service and migration counters record productive execution.
+
+**Real time:** edit execution budget C, period T, relative deadline D≤T and offset. EDF chooses the earliest absolute deadline; RM gives shorter periods fixed higher priority. The CPU is preemptible with zero switch/I/O cost. Jobs release in `[0,H)`, deadlines at H are checked, and completion exactly at a deadline is on time. Missed/overlapping jobs are retained; a miss is counted once, even if that job later completes. Future unfinished deadlines remain pending, not missed. A completed observation window is distinct from every job completing.
+
+Compare the high-utilization preset A=(C2,T5), B=(C4,T7), H35: **EDF meets all 12 deadlines; RM misses one**. The feasible C1/T4 + C2/T5 preset uses 13 useful and 7 idle ticks over H20, with no misses under either policy. The sufficient RM bound is `n(2^(1/n)−1)`; exceeding it does not prove failure. The EDF `Σ(C/T)≤1` criterion is applied only to the stated independent, synchronous, implicit-deadline, zero-overhead uniprocessor model. Constrained deadlines/offsets disable these bound conclusions. A finite simulation alone is not a general schedulability proof. References: [real-time scheduling assumptions and utilization results](https://www.cs.fsu.edu/~baker/papers/rtss03.pdf), [processor load balancing](https://courses.grainger.illinois.edu/cs423/sp2019/slides/13-scheduling-embedded.pdf).
+
+Limits: up to 64 multicore tasks, 2000 multicore ticks, 16 periodic task types, 500 real-time ticks and 4000 released jobs. Release-limit termination is explicitly incomplete. Decision traces retain the latest 500 entries; real-time tables show the latest 200 jobs. JSON edits validate before replacing results, modified configurations show Custom, and navigation preserves each lab. Current total: **337 core/property tests and 14 Chromium browser tests**.

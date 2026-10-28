@@ -8,7 +8,7 @@
 6. **Concurrency:** show the six-operation lost update ending at 1, mutex protection ending at 2, then producer/consumer FIFO wakeups and occupancy limits.
 7. **Resource safety:** display Need, Work and the safe sequence. Request P2's one unit and show rollback. Clarify that unsafe does not mean an existing deadlock.
 8. **Reproducibility and validation:** export JSON/CSV, reload a workload, and show the automated numerical tests and model assumptions.
-9. **Limits and future work:** educational disk costs, separate laboratories, bounded trace retention, no real OS control. Demonstrate the E1–E6 extensions; multicore and real-time scheduling remain in E7.
+9. **Scope and limits:** educational disk costs, separate laboratories, bounded histories, no real host OS control. Demonstrate the completed E1–E7 roadmap using the completion checklist; distinguish simulation evidence from hardware measurements.
 
 ## E3 classroom exercises
 
@@ -31,3 +31,11 @@
 3. Prepare the fragmentation demo. Six free blocks remain, but the largest gap is three. Try the 256-byte report contiguously, then prepare the same demo again for LINKED and INDEXED. Explain the four-adjacent, five-linked, and four-data-plus-one-index requirements.
 4. Create /docs, then queue /docs/notes.txt before the directory commits. Run to completion. Try removing nonempty /docs, then delete the file and remove the empty directory. Observe that blocks are freed only after commit.
 5. Explain limits: independent filesystem clock, abstract directory metadata, copy-on-write temporary-space cost, transient browser state and no crash-recovery model. The disk-policy selector and service formula are shared with the integrated model.
+
+## E7 classroom exercises
+
+1. Open Advanced scheduling. Compare the same four home-core-zero jobs with balancing off/on: 32 ticks at 50% versus 16 ticks at 100%. Explain why a single task cannot execute on two cores and why queue transfers before first service are not execution migrations.
+2. Run the migration preset. Identify P2's move after prior service and the striped two-tick overhead on core 0. For each core, sum useful + idle + overhead; for each task, sum useful work + waiting. Both must equal the relevant elapsed interval.
+3. Compare EDF and RM on C2/T5 + C4/T7 over 35 ticks. EDF meets all deadlines; RM misses B#1's deadline at t=7, even though that job later finishes. Explain dynamic deadline rank versus fixed period rank.
+4. Load the feasible workload: nine jobs, 13 useful ticks and seven idle ticks, with no misses. Discuss the sufficient RM bound and why being above it alone does not prove failure. Explain that constrained deadlines/offsets disable the displayed utilization-test conclusion.
+5. Edit an invalid core count or deadline and verify that prior results remain. Review COMPLETION_AUDIT.md for the final scope, tests and model boundaries.
